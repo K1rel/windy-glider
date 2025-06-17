@@ -1,5 +1,8 @@
 import Phaser from 'phaser';
 
+const MIN_VERTICAL_GAP     = 160;   // never spawn a hole smaller than this
+const MIN_HORIZONTAL_GAP   = 400;   // min X distance between two pillar pairs
+
 export default class GameScene extends Phaser.Scene {
     constructor() {
         super('GameScene');
@@ -213,42 +216,52 @@ export default class GameScene extends Phaser.Scene {
         this.windController.isSwiping = false;
     }
 
+
+
     generateLevel() {
         // Calculate spawn position relative to the camera's right edge, ensuring objects appear on screen
         // This ensures objects always spawn in the visible area, regardless of lastSpawnX being reset or camera movement.
         const currentCameraRightEdge = this.cameras.main.scrollX + this.cameras.main.width;
-        const spawnX = currentCameraRightEdge + 300; // Always spawn 300 pixels beyond the camera's right edge for safety
+        const camRight = this.cameras.main.scrollX + this.cameras.main.width;
+        const spawnX = Math.max(
+            camRight + 300,               // keep new stuff off-screen
+            this.lastSpawnX + MIN_HORIZONTAL_GAP   // respect spacing rule
+        );
+        const groundTop = this.ground.y;
+        const safeGap = 10;
         this.lastSpawnX = spawnX; // Update lastSpawnX for the next check
 
         // Generate obstacles
+        const gapSize = Math.max(MIN_VERTICAL_GAP, 200 - this.difficultyLevel * 10);
+        const maxCenter = groundTop - safeGap - gapSize / 2;
+        const centerY = Phaser.Math.Between(100, maxCenter);
+        // Upper obstacle
+        const upperH = centerY - gapSize / 2;           // desired visible height
+        const upperObstacle = this.obstacles.create(spawnX, 0, 'obstacle')
+            .setOrigin(0, 0)
+            .setDisplaySize(60, upperH)   // ⬅️ scale/crop the sprite itself
+            .refreshBody();               // keep body in sync
+
+        // Lower obstacle
+        const lowerY = centerY + gapSize / 2;
+        const lowerH = groundTop - lowerY;              // so it stops above grass
+        const lowerObstacle = this.obstacles.create(spawnX, lowerY, 'obstacle')
+            .setOrigin(0, 0)
+            .setDisplaySize(60, lowerH)   // ⬅️ match the sprite to the body
+            .refreshBody();
+
+        // Add collectible in gap
         if (Phaser.Math.Between(0, 1) === 1) {
-            const gapSize = Math.max(120, 200 - this.difficultyLevel * 10);
-            const centerY = Phaser.Math.Between(100, this.cameras.main.height - 100);
-
-            // Upper obstacle
-            const upperObstacle = this.obstacles.create(spawnX, 0, 'obstacle')
-                .setSize(60, centerY - gapSize / 2, false)
-                .setOrigin(0, 0)
-                .refreshBody();
-
-            // Lower obstacle
-            const lowerObstacle = this.obstacles.create(spawnX, centerY + gapSize / 2, 'obstacle')
-                .setSize(60, this.cameras.main.height - (centerY + gapSize / 2), false)
-                .setOrigin(0, 0)
-                .refreshBody();
-
-            // Add collectible in gap
-            if (Phaser.Math.Between(0, 1) === 1) {
-                const star = this.collectibles.create(spawnX + 30, centerY, 'star');
-                star.setScale(0.3);
-                star.setData('points', 10);
-            }
+            const star = this.collectibles.create(spawnX + 30, centerY, 'star');
+            star.setScale(0.3);
+            star.setData('points', 10);
         }
+
 
         // Generate wind zones
         if (Phaser.Math.Between(0, 1) === 1) {
             const zoneX = spawnX + 100;
-            const zoneY = Phaser.Math.Between(50, this.cameras.main.height - 150);
+            const zoneY = Phaser.Math.Between(50, groundTop - safeGap - 100);
             const zoneType = Phaser.Math.Between(0, 1) === 0 ? 'updraft' : 'downdraft';
             const forceY = zoneType === 'updraft' ? -2 : 2;
 
@@ -262,7 +275,7 @@ export default class GameScene extends Phaser.Scene {
         // Generate random collectibles
         if (Phaser.Math.Between(0, 1) === 1) {
             const collectX = spawnX + Phaser.Math.Between(0, 200);
-            const collectY = Phaser.Math.Between(50, this.cameras.main.height - 50);
+            const collectY = Phaser.Math.Between(50, groundTop - safeGap);
             const star = this.collectibles.create(collectX, collectY, 'star');
             star.setScale(0.3);
             star.setData('points', Phaser.Math.Between(0, 9) === 0 ? 50 : 10);
@@ -312,7 +325,7 @@ export default class GameScene extends Phaser.Scene {
         }
 
         // Spawn more level ahead of the player
-        if (this.glider.x > this.lastSpawnX - this.cameras.main.width * 0.75) {
+        if (this.glider.x > this.lastSpawnX - MIN_HORIZONTAL_GAP) {
             this.generateLevel();
         }
 
