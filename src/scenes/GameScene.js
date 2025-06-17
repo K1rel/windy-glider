@@ -5,6 +5,53 @@ export default class GameScene extends Phaser.Scene {
         super('GameScene');
     }
 
+    preload() {
+        // Load placeholder assets (solid colors) since actual images are missing.
+        // In a real game, you would load actual image files here.
+
+        // Glider (white rectangle)
+        let graphicsGlider = this.add.graphics({ fillStyle: { color: 0xffffff } });
+        graphicsGlider.fillRect(0, 0, 50, 20);
+        graphicsGlider.generateTexture('glider', 50, 20);
+        graphicsGlider.destroy();
+
+        // Obstacle (brown rectangle)
+        let graphicsObstacle = this.add.graphics({ fillStyle: { color: 0x8B4513 } });
+        graphicsObstacle.fillRect(0, 0, 60, 200);
+        graphicsObstacle.generateTexture('obstacle', 60, 200);
+        graphicsObstacle.destroy();
+
+        // Star (yellow circle)
+        let graphicsStar = this.add.graphics({ fillStyle: { color: 0xFFFF00 } });
+        graphicsStar.fillCircle(25, 25, 25); // Center X, Center Y, Radius
+        graphicsStar.generateTexture('star', 50, 50);
+        graphicsStar.destroy();
+
+        // Wind (light blue transparent rectangle)
+        let graphicsWind = this.add.graphics({ fillStyle: { color: 0xADD8E6, alpha: 0.5 } });
+        graphicsWind.fillRect(0, 0, 80, 100);
+        graphicsWind.generateTexture('wind', 80, 100);
+        graphicsWind.destroy();
+
+        // Ground (green rectangle)
+        let graphicsGround = this.add.graphics({ fillStyle: { color: 0x00FF00 } });
+        graphicsGround.fillRect(0, 0, 50, 50);
+        graphicsGround.generateTexture('ground', 50, 50);
+        graphicsGround.destroy();
+
+        // Cloud (light gray rectangle)
+        let graphicsCloud = this.add.graphics({ fillStyle: { color: 0xF0F0F0 } });
+        graphicsCloud.fillRect(0, 0, 100, 50);
+        graphicsCloud.generateTexture('cloud', 100, 50);
+        graphicsCloud.destroy();
+
+        // Sky background texture (single pixel blue) for infinite background tileSprite
+        let graphicsSkyBg = this.add.graphics({ fillStyle: { color: 0x87CEEB } });
+        graphicsSkyBg.fillRect(0, 0, 1, 1);
+        graphicsSkyBg.generateTexture('sky_background_texture', 1, 1);
+        graphicsSkyBg.destroy();
+    }
+
     create() {
         // Game state
         this.score = 0;
@@ -13,32 +60,33 @@ export default class GameScene extends Phaser.Scene {
         this.gameTime = 0;
         this.difficultyLevel = 1;
         this.gameState = 'playing';
-        this.lastSpawnX = 0; // Track last spawn position
+        this.lastSpawnX = 0;
 
-        // Set world bounds first
-        this.physics.world.setBounds(0, 0, 10000, this.cameras.main.height);
+        // Set a solid background color for the camera, making the sky infinite
+        this.cameras.main.setBackgroundColor(0x87ceeb); 
 
-        // Create background
+        // Create background elements (now only handles clouds if re-added later. Main sky color is set above)
         this.createBackground();
 
         // Create ground
         this.createGround();
-
-        // Create glider
+        
+        // Create glider (glider creation should happen BEFORE camera setup so its position is defined)
         this.createGlider();
+
+        // Set up camera to follow glider
+        this.cameras.main.setBounds(0, 0, Number.MAX_SAFE_INTEGER, this.cameras.main.height); // Camera can scroll infinitely
+        this.cameras.main.startFollow(this.glider, true, 0.1, 0.1);
+        this.cameras.main.setFollowOffset(-this.cameras.main.width / 4, 0);
+        this.cameras.main.roundPixels = true; // Ensure pixel perfect rendering
 
         // Create groups for game objects
         this.obstacles = this.physics.add.group();
         this.collectibles = this.add.group();
         this.windZones = this.physics.add.group();
-        this.particles = this.physics.add.group();
+        this.particles = this.add.group(); // Changed to regular group as particles don't need physics
 
-        // Set up camera to follow glider
-        this.cameras.main.setBounds(0, 0, 10000, this.cameras.main.height);
-        this.cameras.main.startFollow(this.glider, true, 0.1, 0.1);
-        this.cameras.main.setFollowOffset(-this.cameras.main.width / 4, 0);
-
-        // Wind system - reduced direct control
+        // Wind system
         this.windController = {
             strength: 0,
             direction: 0,
@@ -59,6 +107,7 @@ export default class GameScene extends Phaser.Scene {
         // Generate initial level
         this.generateLevel();
         this.generateLevel(); // Generate second set for smoother start
+        this.generateLevel(); // Generate third set for even smoother start
 
         // Start game loop
         this.time.addEvent({
@@ -70,53 +119,32 @@ export default class GameScene extends Phaser.Scene {
     }
 
     createBackground() {
-        // Create sky background that extends with the camera bounds
-        const worldWidth = 10000; // Match camera bounds width
-        const sky = this.add.graphics();
-        sky.fillStyle(0x87ceeb, 1); // Sky blue
-        sky.fillRect(0, 0, worldWidth, this.cameras.main.height);
-
-        // Add clouds with proper world bounds
-        for (let i = 0; i < 20; i++) { // Increased number of clouds
-            const cloud = this.add.image(
-                Phaser.Math.Between(0, worldWidth),
-                Phaser.Math.Between(0, this.cameras.main.height / 2),
-                'cloud'
-            );
-            cloud.setAlpha(0.3);
-            cloud.setScale(Phaser.Math.FloatBetween(0.5, 1.5));
-            this.tweens.add({
-                targets: cloud,
-                x: worldWidth + cloud.width,
-                duration: Phaser.Math.Between(20000, 40000),
-                ease: 'Linear',
-                repeat: -1,
-                yoyo: false
-            });
-        }
+        // This function is now empty. The sky background color is handled by this.cameras.main.setBackgroundColor() in create().
+        // Cloud generation (if desired) can be re-added here after core background issue is resolved.
     }
 
     createGround() {
-        // Create ground that extends with the camera bounds
-        const worldWidth = 10000; // Match camera bounds width
+        // Create ground that extends with the camera. Using tileSprite for infinite scroll.
+        // Its visible width will always match the camera's width, but its content will tile.
         this.ground = this.add.tileSprite(
             0,
             this.cameras.main.height - 50,
-            worldWidth,
+            this.cameras.main.width, // Set initial visible width to camera width
             50,
             'ground'
-        );
-        this.ground.setOrigin(0, 0);
+        ).setOrigin(0,0);
+        this.ground.setScrollFactor(0); // Make it fixed to camera's Y, X will be managed by tilePositionX
         this.physics.add.existing(this.ground, true);
 
-        // Set world bounds to match the ground
-        this.physics.world.setBounds(0, 0, worldWidth, this.cameras.main.height);
+        // Removed physics.world.setBounds - rely on camera bounds and manual checks for infinite runner
     }
 
     createGlider() {
         this.glider = this.physics.add.sprite(200, this.cameras.main.height / 2, 'glider');
-        this.glider.setScale(0.5);
-        this.glider.setCollideWorldBounds(true);
+        this.glider.setScale(1); // Adjust scale for placeholder glider
+        // Set collideWorldBounds to false as we want infinite horizontal movement
+        // Glider will only collide with ground and obstacles, not invisible side walls.
+        this.glider.setCollideWorldBounds(false);
         
         // Improved glider physics for more realistic gliding
         this.glider.body.setBounce(0.1); // Reduced bounce for smoother feel
@@ -207,9 +235,11 @@ export default class GameScene extends Phaser.Scene {
     }
 
     generateLevel() {
-        // Calculate spawn position based on last spawn
-        const spawnX = Math.max(this.lastSpawnX, this.glider.x + this.cameras.main.width);
-        this.lastSpawnX = spawnX + 400; // Set next spawn point
+        // Calculate spawn position relative to the camera's right edge, ensuring objects appear on screen
+        // This ensures objects always spawn in the visible area, regardless of lastSpawnX being reset or camera movement.
+        const currentCameraRightEdge = this.cameras.main.scrollX + this.cameras.main.width;
+        const spawnX = currentCameraRightEdge + 300; // Always spawn 300 pixels beyond the camera's right edge for safety
+        this.lastSpawnX = spawnX; // Update lastSpawnX for the next check
 
         // Generate obstacles
         if (Phaser.Math.Between(0, 1) === 1) {
@@ -220,11 +250,13 @@ export default class GameScene extends Phaser.Scene {
             const upperObstacle = this.obstacles.create(spawnX, 0, 'obstacle');
             upperObstacle.setSize(60, centerY - gapSize / 2);
             upperObstacle.setOrigin(0, 0);
+            upperObstacle.setImmovable(true);
 
             // Lower obstacle
             const lowerObstacle = this.obstacles.create(spawnX, centerY + gapSize / 2, 'obstacle');
             lowerObstacle.setSize(60, this.cameras.main.height - (centerY + gapSize / 2));
             lowerObstacle.setOrigin(0, 0);
+            lowerObstacle.setImmovable(true);
 
             // Add collectible in gap
             if (Phaser.Math.Between(0, 1) === 1) {
@@ -245,6 +277,7 @@ export default class GameScene extends Phaser.Scene {
             windZone.setSize(80, 100);
             windZone.setData('forceY', forceY);
             windZone.setAlpha(0.3);
+            windZone.setImmovable(true);
         }
 
         // Generate random collectibles
@@ -265,6 +298,12 @@ export default class GameScene extends Phaser.Scene {
         if (this.gameState !== 'playing') return;
 
         const deltaTime = this.game.loop.delta;
+
+        // Update the size of the ground tileSprite to match the camera's current view
+        this.ground.width = this.cameras.main.width;
+
+        // Background color is handled by camera.setBackgroundColor() - no need for explicit sky graphic updates
+        this.ground.tilePositionX = this.cameras.main.scrollX; // Ground scrolls at normal speed
 
         this.gameTime += deltaTime;
         this.distance = this.glider.x * 0.05;
@@ -287,7 +326,8 @@ export default class GameScene extends Phaser.Scene {
         const stars = this.collectibles.getChildren();
         for (let i = 0; i < stars.length; i++) {
             const star = stars[i];
-            if (star.active) {
+            // Only check if star is active and within a reasonable distance of the camera's view
+            if (star.active && star.x > this.cameras.main.scrollX - 100 && star.x < this.cameras.main.scrollX + this.cameras.main.width + 100) {
                 const distance = Phaser.Math.Distance.Between(
                     this.glider.x, this.glider.y,
                     star.x, star.y
@@ -300,12 +340,18 @@ export default class GameScene extends Phaser.Scene {
         }
 
         // Generate new level content when glider approaches the last spawn point
-        if (this.glider.x > this.lastSpawnX - this.cameras.main.width) {
+        // Ensure generation happens well within the visible area
+        if (this.glider.x > this.lastSpawnX - (this.cameras.main.width * 0.75)) { // Trigger generation much sooner
             this.generateLevel();
         }
 
-        // Clean up off-screen objects
+        // Clean up off-screen objects that are behind the camera
         this.cleanupObjects();
+
+        // Check if glider is outside vertical world bounds (top or bottom) and trigger game over
+        if (this.glider.y < 0 || this.glider.y > this.cameras.main.height) {
+            this.gameOver();
+        }
     }
 
     updateGliderPhysics(deltaTime) {
@@ -427,25 +473,25 @@ export default class GameScene extends Phaser.Scene {
     }
 
     cleanupObjects() {
-        console.log('Starting cleanup');
+        const cameraX = this.cameras.main.scrollX;
+
         this.obstacles.getChildren().forEach(obstacle => {
-            if (obstacle.x + obstacle.width < this.cameras.main.scrollX - 100) {
+            if (obstacle.x + obstacle.width < cameraX - 100) { // Off-screen to the left
                 obstacle.destroy();
             }
         });
 
         this.collectibles.getChildren().forEach(collectible => {
-            if (collectible.x < this.cameras.main.scrollX - 100) {
+            if (collectible.x < cameraX - 100) { // Off-screen to the left
                 collectible.destroy();
             }
         });
 
         this.windZones.getChildren().forEach(zone => {
-            if (zone.x + zone.width < this.cameras.main.scrollX - 100) {
+            if (zone.x + zone.width < cameraX - 100) { // Off-screen to the left
                 zone.destroy();
             }
         });
-        console.log('Cleanup complete');
     }
 
     gameOver() {
