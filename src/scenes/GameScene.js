@@ -317,9 +317,29 @@ export default class GameScene extends Phaser.Scene {
             this.applyWindForces(deltaTime);
         }
 
-        // Check collisions
+        // Check ground collision
         this.physics.collide(this.glider, this.ground, this.handleGroundCollision, null, this);
-        this.physics.collide(this.glider, this.obstacles, this.handleObstacleCollision, null, this);
+
+        // Check obstacle collisions using distance-based detection
+        const obstacles = this.obstacles.getChildren();
+        for (let i = 0; i < obstacles.length; i++) {
+            const obstacle = obstacles[i];
+            // Only check if obstacle is active and within a reasonable distance of the glider
+            if (obstacle.active && 
+                Math.abs(this.glider.x - obstacle.x) < 200 && // Increased horizontal check distance
+                Math.abs(this.glider.y - obstacle.y) < 300) { // Increased vertical check distance
+                const distance = Phaser.Math.Distance.Between(
+                    this.glider.x, this.glider.y,
+                    obstacle.x, obstacle.y
+                );
+                if (distance < 80) { // Increased collision radius
+                    this.handleObstacleCollision(this.glider, obstacle);
+                    break;
+                }
+            }
+        }
+
+        // Check wind zone collisions
         this.physics.overlap(this.glider, this.windZones, this.handleWindZoneCollision, null, this);
 
         // Check star collection using distance
