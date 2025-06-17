@@ -6,6 +6,8 @@ import Phaser from 'phaser';
 const MIN_VERTICAL_GAP   = 160;   // smallest hole between two pillars
 const MIN_HORIZONTAL_GAP = 400;   // min. distance between pillar pairs
 
+const GRAVITY_PER_FRAME = 0.25   // ↓ smaller than the old 0.35 for a gentler sink
+
 export default class GameScene extends Phaser.Scene {
     constructor () { super('GameScene'); }
 
@@ -214,23 +216,44 @@ export default class GameScene extends Phaser.Scene {
 
     /* ───────────────── PHYSICS HELPERS */
     updateGliderPhysics () {
-        const v = this.glider.body.velocity;
-        if (v.x < 80) v.x = 80;             // never stall
-        v.y += 0.35;                        // simple gravity
-        const drag = Math.pow(v.length() / 300, 2) * 0.98;
-        this.glider.body.drag = Math.max(0.985, 1 - drag);
+        const body = this.glider.body
+        const v    = body.velocity
+
+        /* 1. Never let airflow stall completely */
+        if (v.x < 90) v.x = 90
+
+        /* 2. Gravity vs. a touch of lift
+              • gravity is the constant GRAVITY_PER_FRAME downward
+              • lift grows linearly with forward speed after 120 px/s
+           At ~200 px/s you’re roughly level; slower sinks, faster climbs a bit. */
+        const lift = Phaser.Math.Clamp((v.x - 120) * 0.002, 0, 0.20)
+        v.y += GRAVITY_PER_FRAME - lift
+
+        /* 3. Same quadratic drag idea you had, but a hair softer */
+        const dragFactor = Math.pow(v.length() / 300, 2) * 0.92
+        body.drag = Math.max(0.985, 1 - dragFactor)
+
+        /* 4. Keep vertical speed reasonable so it never becomes a rocket */
+        v.y = Phaser.Math.Clamp(v.y, -250, 350)
+
+        /* 5. Tilt sprite toward real flight path (purely visual) */
+        const target = Phaser.Math.RadToDeg(Math.atan2(v.y, v.x))
+        this.glider.angle = Phaser.Math.Linear(this.glider.angle, target, 0.12)
     }
 
     applyWindForces (dtMs) {
         const w  = this.windController;
         const v  = this.glider.body.velocity;
-        const dt = dtMs / 16.67;            // 1 ≈ one frame at 60 FPS
-        const accel = 0.12 * dt;            // tweak for feel
 
+        // convert milliseconds to “60 fps–frames”
+        const dt = dtMs / 16.67;                 // 1 ≈ one frame at 60 FPS
+        const accel = 0.12 * dt;                 // original feel
+
+        // push glider in wind direction
         v.x += Math.cos(w.direction) * w.strength * accel;
         v.y += Math.sin(w.direction) * w.strength * accel;
 
-        /* torque */
+        /* optional: slight torque so the nose turns into the gust */
         if (w.strength > 20) {
             const a = Phaser.Math.Angle.ShortestBetween(
                 this.glider.angle,
@@ -239,9 +262,11 @@ export default class GameScene extends Phaser.Scene {
             this.glider.body.angularVelocity += (a / 180) * (w.strength / 250);
         }
 
-        /* decay */
+        // exponential decay of the gust
         w.strength *= Math.pow(0.92, dt);
+        if (w.strength < 1) w.strength = 0;      // stop tiny residual jitters
     }
+
 
     /* ───────────────── COLLISION HANDLERS */
     handleGroundCollision () { this.gameOver(); }
