@@ -1,484 +1,288 @@
 import Phaser from 'phaser';
 
-const MIN_VERTICAL_GAP     = 160;   // never spawn a hole smaller than this
-const MIN_HORIZONTAL_GAP   = 400;   // min X distance between two pillar pairs
+/* ──────────────────────────
+   TUNABLE LAYOUT CONSTANTS
+   ────────────────────────── */
+const MIN_VERTICAL_GAP   = 160;   // smallest hole between two pillars
+const MIN_HORIZONTAL_GAP = 400;   // min. distance between pillar pairs
 
 export default class GameScene extends Phaser.Scene {
-    constructor() {
-        super('GameScene');
+    constructor () { super('GameScene'); }
+
+    /* ═════════════════════════ PRELOAD ═════════════════════════ */
+    preload () {
+        /* minimal textures so the demo runs without external assets */
+        const tex = (key, w, h, draw) => {
+            const g = this.add.graphics();
+            draw(g);
+            g.generateTexture(key, w, h);
+            g.destroy();
+        };
+        tex('glider',   50, 20, g => g.fillStyle(0xffffff).fillRect(0,0,50,20));
+        tex('obstacle', 60,200, g => g.fillStyle(0x8B4513).fillRect(0,0,60,200));
+        tex('star',     50, 50, g => g.fillStyle(0xffff00).fillCircle(25,25,25));
+        tex('wind',     80,100, g => g.fillStyle(0xADD8E6,0.5).fillRect(0,0,80,100));
+        tex('ground',   50, 50, g => g.fillStyle(0x00ff00).fillRect(0,0,50,50));
     }
 
-    preload() {
-        // Load placeholder assets (solid colors) since actual images are missing.
-        // In a real game, you would load actual image files here.
-
-        // Glider (white rectangle)
-        let graphicsGlider = this.add.graphics({ fillStyle: { color: 0xffffff } });
-        graphicsGlider.fillRect(0, 0, 50, 20);
-        graphicsGlider.generateTexture('glider', 50, 20);
-        graphicsGlider.destroy();
-
-        // Obstacle (brown rectangle)
-        let graphicsObstacle = this.add.graphics({ fillStyle: { color: 0x8B4513 } });
-        graphicsObstacle.fillRect(0, 0, 60, 200);
-        graphicsObstacle.generateTexture('obstacle', 60, 200);
-        graphicsObstacle.destroy();
-
-        // Star (yellow circle)
-        let graphicsStar = this.add.graphics({ fillStyle: { color: 0xFFFF00 } });
-        graphicsStar.fillCircle(25, 25, 25); // Center X, Center Y, Radius
-        graphicsStar.generateTexture('star', 50, 50);
-        graphicsStar.destroy();
-
-        // Wind (light blue transparent rectangle)
-        let graphicsWind = this.add.graphics({ fillStyle: { color: 0xADD8E6, alpha: 0.5 } });
-        graphicsWind.fillRect(0, 0, 80, 100);
-        graphicsWind.generateTexture('wind', 80, 100);
-        graphicsWind.destroy();
-
-        // Ground (green rectangle)
-        let graphicsGround = this.add.graphics({ fillStyle: { color: 0x00FF00 } });
-        graphicsGround.fillRect(0, 0, 50, 50);
-        graphicsGround.generateTexture('ground', 50, 50);
-        graphicsGround.destroy();
-
-        // Cloud (light gray rectangle)
-        let graphicsCloud = this.add.graphics({ fillStyle: { color: 0xF0F0F0 } });
-        graphicsCloud.fillRect(0, 0, 100, 50);
-        graphicsCloud.generateTexture('cloud', 100, 50);
-        graphicsCloud.destroy();
-
-        // Sky background texture (single pixel blue) for infinite background tileSprite
-        let graphicsSkyBg = this.add.graphics({ fillStyle: { color: 0x87CEEB } });
-        graphicsSkyBg.fillRect(0, 0, 1, 1);
-        graphicsSkyBg.generateTexture('sky_background_texture', 1, 1);
-        graphicsSkyBg.destroy();
-    }
-
-    create() {
-        /* 1️⃣  Game‑state values */
-        this.score          = 0;
-        this.lives          = 3;
-        this.distance       = 0;
-        this.gameTime       = 0;
+    /* ═════════════════════════ CREATE ═════════════════════════ */
+    create () {
+        /* — state — */
+        this.score = 0;
+        this.lives = 3;
+        this.distance = 0;
         this.difficultyLevel = 1;
-        this.gameState      = 'playing';
-        this.lastSpawnX     = 0;
+        this.gameState = 'playing';
+        this.lastSpawnX = 0;
 
-        /* 2️⃣  Camera background colour (sky) */
+        /* — sky — */
         this.cameras.main.setBackgroundColor(0x87ceeb);
 
-        /* 3️⃣  Physics / display groups  – must EXIST before colliders */
-        this.obstacles    = this.physics.add.staticGroup(); // pillars (AABB bodies)
-        this.collectibles = this.add.group();                // stars
-        this.windZones    = this.physics.add.group();        // updraft / downdraft areas
-        this.particles    = this.add.group();                // visual only – no physics
+        /* — groups — */
+        this.obstacles    = this.physics.add.staticGroup();
+        this.collectibles = this.add.group();
+        this.windZones    = this.physics.add.group();
 
-        /* 4️⃣  World pieces */
+        /* — world pieces — */
         this.createGround();
-        this.createBackground(); // currently empty – placeholder for clouds
         this.createGlider();
 
-        /* 5️⃣  Colliders – wire AFTER both sides exist */
+        /* — collisions — */
         this.physics.add.collider(this.glider, this.obstacles, this.handleObstacleCollision, null, this);
         this.physics.add.collider(this.glider, this.ground,     this.handleGroundCollision,   null, this);
 
-        /* 6️⃣  Camera follow */
-        this.cameras.main.setBounds(0, 0, Number.MAX_SAFE_INTEGER, this.cameras.main.height);
-        this.cameras.main.startFollow(this.glider, true, 0.1, 0.1);
-        this.cameras.main.setFollowOffset(-this.cameras.main.width / 4, 0);
-        this.cameras.main.roundPixels = true;
+        /* — camera follow — */
+        const cam = this.cameras.main;
+        cam.setBounds(0, 0, Number.MAX_SAFE_INTEGER, cam.height);
+        cam.startFollow(this.glider, true, 0.1, 0.1);
+        cam.setFollowOffset(-cam.width / 4, 0);
+        cam.roundPixels = true;
 
-        /* 7️⃣  Wind‑swipe input */
-        this.windController = {
-            strength: 0,
-            direction: 0,
-            isSwiping: false,
-            startX: 0, startY: 0, startTime: 0
-        };
+        /* — wind swipe input — */
+        this.windController = { strength: 0, direction: 0, isSwiping: false, startX: 0, startY: 0, startTime: 0 };
         this.input.on('pointerdown', this.startSwipe,  this);
         this.input.on('pointermove', this.updateSwipe, this);
         this.input.on('pointerup',   this.endSwipe,    this);
 
-        /* 8️⃣  UI overlay */
+        /* — HUD scene — */
         this.scene.launch('UIScene');
 
-        /* 9️⃣  Level bootstrap (3 chunks so the start feels full) */
-        this.generateLevel();
-        this.generateLevel();
-        this.generateLevel();
+        /* — bootstrap level — */
+        this.generateLevel(); this.generateLevel(); this.generateLevel();
 
-        /* 🔟  Difficulty scaling – once per second */
-        this.time.addEvent({ delay: 1000, callback: this.updateDifficulty, callbackScope: this, loop: true });
+        /* — difficulty timer — */
+        this.time.addEvent({ delay: 1000, loop: true, callback: () => { this.difficultyLevel++; } });
     }
 
-    createBackground() {
-        // This function is now empty. The sky background color is handled by this.cameras.main.setBackgroundColor() in create().
-        // Cloud generation (if desired) can be re-added here after core background issue is resolved.
+    /* ───────────────────────── GROUND */
+    createGround () {
+        const cam = this.cameras.main;
+        this.ground = this.add
+            .tileSprite(0, cam.height - 50, cam.width, 50, 'ground')
+            .setOrigin(0,0)
+            .setScrollFactor(0);
+        this.physics.add.existing(this.ground, true);
     }
 
-    createGround() {
-        // Create ground that extends with the camera. Using tileSprite for infinite scroll.
-        // Its visible width will always match the camera's width, but its content will tile.
-        this.ground = this.add.tileSprite(0, this.cameras.main.height - 50, this.cameras.main.width, 50, 'ground')
-            .setOrigin(0, 0);
-        this.ground.setScrollFactor(0);
-        this.physics.add.existing(this.ground, true); // static body
-
-        // Removed physics.world.setBounds - rely on camera bounds and manual checks for infinite runner
+    /* ───────────────────────── GLIDER */
+    createGlider () {
+        const cam = this.cameras.main;
+        this.glider = this.physics.add.sprite(200, cam.height / 2, 'glider');
+        const body = this.glider.body;
+        body.setBounce(0.1)
+            .setDrag(0.985)
+            .setMaxVelocity(400, 300)
+            .setAngularDrag(0.8);
+        body.velocity.x = 100;   // forward motion
     }
 
-    createGlider() {
-        this.glider = this.physics.add.sprite(200, this.cameras.main.height / 2, 'glider');
-        this.glider.setCollideWorldBounds(false);
-        this.glider.setBounce(0.1);
-        this.glider.body.setDrag(0.985);
-        this.glider.body.setMaxVelocity(400, 300);
-        this.glider.body.setAngularDrag(0.8);
-        this.glider.body.velocity.x = 100; // initial forward motion
-    }
-
-    startSwipe(pointer) {
+    /* ════════════════ WIND SWIPE HANDLERS ════════════════ */
+    startSwipe (p) {
         if (this.gameState !== 'playing') return;
-        
-        this.windController.isSwiping = true;
-        this.windController.startX = pointer.x;
-        this.windController.startY = pointer.y;
-        this.windController.startTime = this.time.now;
-        
-        // Add immediate wind effect on click
-        this.windController.strength = 100;
-        this.windController.direction = Math.atan2(
-            this.glider.y - pointer.y,
-            this.glider.x - pointer.x
-        );
+        Object.assign(this.windController, {
+            isSwiping: true,
+            startX: p.x, startY: p.y,
+            startTime: this.time.now,
+            strength: 120,
+            direction: Math.atan2(this.glider.y - p.y, this.glider.x - p.x)
+        });
     }
-
-    updateSwipe(pointer) {
+    updateSwipe (p) {
         if (!this.windController.isSwiping) return;
-
-        // Update wind direction during swipe
-        this.windController.direction = Math.atan2(
-            this.glider.y - pointer.y,
-            this.glider.x - pointer.x
-        );
-
-        // Create wind particles during swipe
-        const particles = this.add.particles(pointer.x, pointer.y, 'wind', {
-            speed: { min: 5, max: 10 },
-            angle: { min: 0, max: 360 },
-            scale: { start: 0.3, end: 0.6 },
-            alpha: { start: 0.7, end: 0 },
-            lifespan: 400,
-            quantity: 5,
-            frequency: 50
-        });
-
-        this.time.delayedCall(400, () => {
-            particles.destroy();
-        });
+        this.windController.direction = Math.atan2(this.glider.y - p.y, this.glider.x - p.x);
     }
-
-    endSwipe(pointer) {
+    endSwipe (p) {
         if (!this.windController.isSwiping) return;
-        
-        const endX = pointer.x;
-        const endY = pointer.y;
-        const endTime = this.time.now;
-        
-        const dx = endX - this.windController.startX;
-        const dy = endY - this.windController.startY;
-        const swipeTime = endTime - this.windController.startTime;
-        
-        this.windController.direction = Math.atan2(dy, dx);
-        const swipeDistance = Math.sqrt(dx * dx + dy * dy);
-        const swipeSpeed = swipeDistance / swipeTime;
-        
-        // Increased wind strength for better control
-        this.windController.strength = Math.min(400, swipeSpeed * 8 + swipeDistance * 0.4);
-        
-        const particles = this.add.particles(this.windController.startX, this.windController.startY, 'wind', {
-            speed: { min: 40, max: 80 },
-            angle: { min: this.windController.direction - 0.6, max: this.windController.direction + 0.6 },
-            scale: { start: 0.8, end: 1.8 },
-            alpha: { start: 1.0, end: 0 },
-            lifespan: 2000,
-            quantity: 60,
-            frequency: 50
-        });
-
-        this.time.delayedCall(2000, () => {
-            particles.destroy();
-        });
-
-        this.events.emit('updateWind', this.windController.strength / 400);
-        
-        this.windController.isSwiping = false;
+        const w = this.windController;
+        const dx = p.x - w.startX, dy = p.y - w.startY;
+        const dist = Math.hypot(dx, dy);
+        const speed = dist / (this.time.now - w.startTime);
+        w.direction = Math.atan2(dy, dx);
+        w.strength  = Math.min(450, speed * 10 + dist * 0.5);
+        this.events.emit('updateWind', w.strength / 450);
+        w.isSwiping = false;
     }
 
+    /* ════════════════ LEVEL GENERATION ════════════════ */
+    generateLevel () {
+        const cam = this.cameras.main;
+        const spawnX = Math.max(cam.scrollX + cam.width + 300,
+            this.lastSpawnX + MIN_HORIZONTAL_GAP);
+        const groundTop = this.ground.y, safeGap = 10;
 
+        /* pillar pair */
+        const gapSize  = Math.max(MIN_VERTICAL_GAP, 200 - this.difficultyLevel * 10);
+        const centerY  = Phaser.Math.Between(100, groundTop - safeGap - gapSize / 2);
 
-    generateLevel() {
-        // Calculate spawn position relative to the camera's right edge, ensuring objects appear on screen
-        // This ensures objects always spawn in the visible area, regardless of lastSpawnX being reset or camera movement.
-        const currentCameraRightEdge = this.cameras.main.scrollX + this.cameras.main.width;
-        const camRight = this.cameras.main.scrollX + this.cameras.main.width;
-        const spawnX = Math.max(
-            camRight + 300,               // keep new stuff off-screen
-            this.lastSpawnX + MIN_HORIZONTAL_GAP   // respect spacing rule
-        );
-        const groundTop = this.ground.y;
-        const safeGap = 10;
-        this.lastSpawnX = spawnX; // Update lastSpawnX for the next check
+        this.obstacles.create(spawnX, 0, 'obstacle')
+            .setOrigin(0,0).setDisplaySize(60, centerY - gapSize / 2).refreshBody();
+        this.obstacles.create(spawnX, centerY + gapSize / 2, 'obstacle')
+            .setOrigin(0,0).setDisplaySize(60, groundTop - (centerY + gapSize / 2)).refreshBody();
 
-        // Generate obstacles
-        const gapSize = Math.max(MIN_VERTICAL_GAP, 200 - this.difficultyLevel * 10);
-        const maxCenter = groundTop - safeGap - gapSize / 2;
-        const centerY = Phaser.Math.Between(100, maxCenter);
-        // Upper obstacle
-        const upperH = centerY - gapSize / 2;           // desired visible height
-        const upperObstacle = this.obstacles.create(spawnX, 0, 'obstacle')
-            .setOrigin(0, 0)
-            .setDisplaySize(60, upperH)   // ⬅️ scale/crop the sprite itself
-            .refreshBody();               // keep body in sync
+        /* guaranteed star in the gap (bigger) */
+        this.collectibles.create(spawnX + 30, centerY, 'star')
+            .setScale(0.5)
+            .setData('points', 10);
 
-        // Lower obstacle
-        const lowerY = centerY + gapSize / 2;
-        const lowerH = groundTop - lowerY;              // so it stops above grass
-        const lowerObstacle = this.obstacles.create(spawnX, lowerY, 'obstacle')
-            .setOrigin(0, 0)
-            .setDisplaySize(60, lowerH)   // ⬅️ match the sprite to the body
-            .refreshBody();
-
-        // Add collectible in gap
-        if (Phaser.Math.Between(0, 1) === 1) {
-            const star = this.collectibles.create(spawnX + 30, centerY, 'star');
-            star.setScale(0.3);
-            star.setData('points', 10);
+        /* wind zone (optional) */
+        if (Phaser.Math.Between(0,1)) {
+            const wzY = Phaser.Math.Between(50, groundTop - safeGap - 100);
+            const wz  = this.windZones.create(spawnX + 100, wzY, 'wind');
+            wz.setSize(80, 100).setAlpha(0.3).setImmovable(true)
+                .setData('forceY', Phaser.Math.Between(0,1) ? -2 : 2);
         }
 
-
-        // Generate wind zones
-        if (Phaser.Math.Between(0, 1) === 1) {
-            const zoneX = spawnX + 100;
-            const zoneY = Phaser.Math.Between(50, groundTop - safeGap - 100);
-            const zoneType = Phaser.Math.Between(0, 1) === 0 ? 'updraft' : 'downdraft';
-            const forceY = zoneType === 'updraft' ? -2 : 2;
-
-            const windZone = this.windZones.create(zoneX, zoneY, 'wind');
-            windZone.setSize(80, 100);
-            windZone.setData('forceY', forceY);
-            windZone.setAlpha(0.3);
-            windZone.setImmovable(true);
-        }
-
-        // Generate random collectibles
-        if (Phaser.Math.Between(0, 1) === 1) {
-            const collectX = spawnX + Phaser.Math.Between(0, 200);
-            const collectY = Phaser.Math.Between(50, groundTop - safeGap);
-            const star = this.collectibles.create(collectX, collectY, 'star');
-            star.setScale(0.3);
-            star.setData('points', Phaser.Math.Between(0, 9) === 0 ? 50 : 10);
-        }
-    }
-
-    updateDifficulty() {
-        this.difficultyLevel++;
-    }
-
-    update() {
-        if (this.gameState !== 'playing') return;
-
-        const deltaTime = this.game.loop.delta;
-
-        // Keep ground width in sync with camera size and scroll position
-        this.ground.width = this.cameras.main.width;
-        this.ground.tilePositionX = this.cameras.main.scrollX;
-
-        // Distance / time tracking
-        this.gameTime += deltaTime;
-        this.distance = this.glider.x * 0.05;
-        this.events.emit('updateDistance', this.distance);
-
-        // Physics & forces
-        this.updateGliderPhysics(deltaTime);
-        if (this.windController.strength > 0) {
-            this.applyWindForces(deltaTime);
-        }
-
-        // NOTE: ground collisions handled by the static collider set up in create()
-
-        // Wind‑zone overlap
-        this.physics.overlap(this.glider, this.windZones, this.handleWindZoneCollision, null, this);
-
-        // Star collection by distance check
-        const stars = this.collectibles.getChildren();
-        for (let i = 0; i < stars.length; i++) {
-            const star = stars[i];
-            if (star.active && star.x > this.cameras.main.scrollX - 100 && star.x < this.cameras.main.scrollX + this.cameras.main.width + 100) {
-                const d = Phaser.Math.Distance.Between(this.glider.x, this.glider.y, star.x, star.y);
-                if (d < 30) {
-                    this.handleCollectibleCollision(this.glider, star);
+        /* random star, avoiding pillars */
+        if (Phaser.Math.Between(0,1)) {
+            for (let tries = 0; tries < 5; tries++) {
+                const sx = spawnX + Phaser.Math.Between(0, 200);
+                const sy = Phaser.Math.Between(50, groundTop - safeGap - 25);
+                const overlaps = this.obstacles.getChildren().some(ob =>
+                    sx > ob.x - 30 && sx < ob.x + ob.displayWidth + 30 &&
+                    sy > ob.y      && sy < ob.y + ob.displayHeight);
+                if (!overlaps) {
+                    this.collectibles.create(sx, sy, 'star')
+                        .setScale(0.5)
+                        .setData('points', Phaser.Math.Between(0, 9) ? 10 : 50);
                     break;
                 }
             }
         }
 
-        // Spawn more level ahead of the player
-        if (this.glider.x > this.lastSpawnX - MIN_HORIZONTAL_GAP) {
-            this.generateLevel();
-        }
+        this.lastSpawnX = spawnX;
+    }
 
-        // Clean‑up off‑screen objects
+    /* ═══════════════════════ UPDATE ═══════════════════════ */
+    update () {
+        if (this.gameState !== 'playing') return;
+
+        /* ground scroll */
+        const cam = this.cameras.main;
+        this.ground.width = cam.width;
+        this.ground.tilePositionX = cam.scrollX;
+
+        /* distance HUD */
+        this.distance = this.glider.x * 0.05;
+        this.events.emit('updateDistance', this.distance);
+
+        /* physics */
+        this.updateGliderPhysics();
+        if (this.windController.strength > 0)
+            this.applyWindForces(this.game.loop.delta);
+
+        /* wind zone influence */
+        this.physics.overlap(this.glider, this.windZones, this.handleWindZoneCollision, null, this);
+
+        /* star collection */
+        this.collectibles.getChildren().forEach(star => {
+            if (!star.active) return;
+            const d = Phaser.Math.Distance.Between(this.glider.x, this.glider.y, star.x, star.y);
+            if (d < 30) this.handleCollectibleCollision(this.glider, star);
+        });
+
+        /* spawn ahead */
+        if (this.glider.x > this.lastSpawnX - MIN_HORIZONTAL_GAP)
+            this.generateLevel();
+
+        /* cleanup off-screen items */
         this.cleanupObjects();
 
-        // Vertical out‑of‑bounds check
-        if (this.glider.y < 0 || this.glider.y > this.cameras.main.height) {
+        /* grass collision */
+        if (this.glider.y + this.glider.displayHeight / 2 >= this.ground.y)
             this.gameOver();
-        }
     }
 
-    updateGliderPhysics(deltaTime) {
-        // Maintain forward momentum - gliders should always move forward
-        const minForwardSpeed = 80;
-        if (this.glider.body.velocity.x < minForwardSpeed) {
-            this.glider.body.velocity.x = minForwardSpeed;
-        }
-
-        // Apply gravity more realistically
-        const gravity = 0.3 * deltaTime * 0.1;
-        this.glider.body.velocity.y += gravity;
-
-        // Calculate angle based on velocity for realistic orientation
-        const velocityAngle = Math.atan2(this.glider.body.velocity.y, this.glider.body.velocity.x);
-        const targetAngle = Phaser.Math.RadToDeg(velocityAngle);
-        
-        // Smoothly rotate to match velocity direction
-        this.glider.angle = Phaser.Math.Linear(this.glider.angle, targetAngle, 0.08);
-
-        // Add slight lift based on forward speed (glider aerodynamics)
-        const forwardSpeed = this.glider.body.velocity.x;
-        const liftFactor = Math.max(0, (forwardSpeed - 50) / 200); // More speed = more potential lift
-        const angleRad = Phaser.Math.DegToRad(this.glider.angle);
-        
-        // Generate lift when glider is angled upward and has speed
-        if (this.glider.angle < -5 && this.glider.angle > -45) {
-            const lift = liftFactor * Math.abs(Math.sin(angleRad)) * 0.5;
-            this.glider.body.velocity.y -= lift;
-        }
-
-        // Air resistance increases with speed
-        const airResistance = Math.pow(this.glider.body.velocity.length() / 300, 2) * 0.98;
-        this.glider.body.drag = Math.max(0.985, 1 - airResistance);
+    /* ───────────────── PHYSICS HELPERS */
+    updateGliderPhysics () {
+        const v = this.glider.body.velocity;
+        if (v.x < 80) v.x = 80;             // never stall
+        v.y += 0.35;                        // simple gravity
+        const drag = Math.pow(v.length() / 300, 2) * 0.98;
+        this.glider.body.drag = Math.max(0.985, 1 - drag);
     }
 
-    applyWindForces(deltaTime) {
-        // Wind should influence the glider more directly
-        const windX = Math.cos(this.windController.direction) * this.windController.strength;
-        const windY = Math.sin(this.windController.direction) * this.windController.strength;
-        
-        // Apply wind as direct velocity change for more immediate response
-        const windForce = 0.05; // Increased for more immediate effect
-        this.glider.body.velocity.x += windX * windForce;
-        this.glider.body.velocity.y += windY * windForce;
-        
-        // Wind affects rotation more directly
-        const angleToWind = Phaser.Math.Angle.ShortestBetween(
-            this.glider.angle,
-            Phaser.Math.RadToDeg(this.windController.direction)
-        );
-        
-        // Apply rotational force more aggressively
-        if (this.windController.strength > 20) {
-            const rotationalInfluence = (angleToWind / 180) * (this.windController.strength / 200) * 0.8;
-            this.glider.body.angularVelocity += rotationalInfluence;
+    applyWindForces (dtMs) {
+        const w  = this.windController;
+        const v  = this.glider.body.velocity;
+        const dt = dtMs / 16.67;            // 1 ≈ one frame at 60 FPS
+        const accel = 0.12 * dt;            // tweak for feel
+
+        v.x += Math.cos(w.direction) * w.strength * accel;
+        v.y += Math.sin(w.direction) * w.strength * accel;
+
+        /* torque */
+        if (w.strength > 20) {
+            const a = Phaser.Math.Angle.ShortestBetween(
+                this.glider.angle,
+                Phaser.Math.RadToDeg(w.direction)
+            );
+            this.glider.body.angularVelocity += (a / 180) * (w.strength / 250);
         }
 
-        // Wind strength decays over time
-        this.windController.strength *= 0.95;
+        /* decay */
+        w.strength *= Math.pow(0.92, dt);
     }
 
-    handleGroundCollision() {
-        this.gameOver();
-    }
+    /* ───────────────── COLLISION HANDLERS */
+    handleGroundCollision () { this.gameOver(); }
 
-    handleObstacleCollision(glider, obstacle) {
-        // Destroy the obstacle that was hit
-        obstacle.destroy();
-        
+    handleObstacleCollision (glider, pillar) {
+        pillar.destroy();
         this.lives--;
         this.events.emit('updateLives', this.lives);
 
-        if (this.lives <= 0) {
-            this.gameOver();
-        } else {
-            // More realistic collision response
-            this.glider.body.velocity.x = Math.max(50, this.glider.body.velocity.x * 0.3);
-            this.glider.body.velocity.y = -Math.abs(this.glider.body.velocity.y) * 0.7;
-            this.glider.x -= 15;
-            
-            // Add a brief invincibility period
-            this.glider.setAlpha(0.5);
-            this.time.delayedCall(1000, () => {
-                this.glider.setAlpha(1);
-            });
-        }
+        if (this.lives <= 0) { this.gameOver(); return; }
+
+        /* bounce back & invulnerability flicker */
+        glider.body.velocity.x = Math.max(50, glider.body.velocity.x * 0.3);
+        glider.body.velocity.y = -Math.abs(glider.body.velocity.y) * 0.7;
+        glider.x -= 15;
+        glider.setAlpha(0.5);
+        this.time.delayedCall(1000, () => glider.setAlpha(1));
     }
 
-    handleCollectibleCollision(glider, collectible) {
-        if (!collectible.active) return;
-        
-        const points = collectible.getData('points');
-        this.score += points;
+    handleCollectibleCollision (_, star) {
+        if (!star.active) return;
+        this.score += star.getData('points');
         this.events.emit('updateScore', this.score);
-
-        // Create star burst effect using the new particle system
-        const particles = this.add.particles(collectible.x, collectible.y, 'star', {
-            speed: { min: 50, max: 100 },
-            angle: { min: 0, max: 360 },
-            scale: { start: 0.3, end: 0 },
-            lifespan: 500,
-            quantity: 5,
-            frequency: 50
-        });
-
-        // Destroy the collectible
-        collectible.destroy();
-
-        // Clean up particles after animation
-        this.time.delayedCall(500, () => {
-            particles.destroy();
-        });
+        star.destroy();
     }
 
-    handleWindZoneCollision(glider, zone) {
-        const forceY = zone.getData('forceY');
-        glider.body.velocity.y += forceY * 0.1;
+    handleWindZoneCollision (_, zone) {
+        this.glider.body.velocity.y += zone.getData('forceY') * 0.1;
     }
 
-    cleanupObjects() {
-        const cameraX = this.cameras.main.scrollX;
-
-        this.obstacles.getChildren().forEach(obstacle => {
-            if (obstacle.x + obstacle.width < cameraX - 100) { // Off-screen to the left
-                obstacle.destroy();
-            }
-        });
-
-        this.collectibles.getChildren().forEach(collectible => {
-            if (collectible.x < cameraX - 100) { // Off-screen to the left
-                collectible.destroy();
-            }
-        });
-
-        this.windZones.getChildren().forEach(zone => {
-            if (zone.x + zone.width < cameraX - 100) { // Off-screen to the left
-                zone.destroy();
-            }
-        });
+    /* ───────────────── HOUSEKEEPING */
+    cleanupObjects () {
+        const cutoff = this.cameras.main.scrollX - 100;
+        [...this.obstacles.getChildren(),
+            ...this.collectibles.getChildren(),
+            ...this.windZones.getChildren()]
+            .forEach(obj => { if (obj.x + obj.displayWidth < cutoff) obj.destroy(); });
     }
 
-    gameOver() {
+    /* ───────────────── GAME OVER */
+    gameOver () {
         this.gameState = 'gameOver';
         this.events.emit('gameOver', this.score, this.distance);
     }
