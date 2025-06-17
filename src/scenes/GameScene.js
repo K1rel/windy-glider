@@ -53,69 +53,60 @@ export default class GameScene extends Phaser.Scene {
     }
 
     create() {
-        // Game state
-        this.score = 0;
-        this.lives = 3;
-        this.distance = 0;
-        this.gameTime = 0;
+        /* 1️⃣  Game‑state values */
+        this.score          = 0;
+        this.lives          = 3;
+        this.distance       = 0;
+        this.gameTime       = 0;
         this.difficultyLevel = 1;
-        this.gameState = 'playing';
-        this.lastSpawnX = 0;
+        this.gameState      = 'playing';
+        this.lastSpawnX     = 0;
 
-        // Set a solid background color for the camera, making the sky infinite
-        this.cameras.main.setBackgroundColor(0x87ceeb); 
+        /* 2️⃣  Camera background colour (sky) */
+        this.cameras.main.setBackgroundColor(0x87ceeb);
 
-        // Create background elements (now only handles clouds if re-added later. Main sky color is set above)
-        this.createBackground();
+        /* 3️⃣  Physics / display groups  – must EXIST before colliders */
+        this.obstacles    = this.physics.add.staticGroup(); // pillars (AABB bodies)
+        this.collectibles = this.add.group();                // stars
+        this.windZones    = this.physics.add.group();        // updraft / downdraft areas
+        this.particles    = this.add.group();                // visual only – no physics
 
-        // Create ground
+        /* 4️⃣  World pieces */
         this.createGround();
-        
-        // Create glider (glider creation should happen BEFORE camera setup so its position is defined)
+        this.createBackground(); // currently empty – placeholder for clouds
         this.createGlider();
 
-        // Set up camera to follow glider
-        this.cameras.main.setBounds(0, 0, Number.MAX_SAFE_INTEGER, this.cameras.main.height); // Camera can scroll infinitely
+        /* 5️⃣  Colliders – wire AFTER both sides exist */
+        this.physics.add.collider(this.glider, this.obstacles, this.handleObstacleCollision, null, this);
+        this.physics.add.collider(this.glider, this.ground,     this.handleGroundCollision,   null, this);
+
+        /* 6️⃣  Camera follow */
+        this.cameras.main.setBounds(0, 0, Number.MAX_SAFE_INTEGER, this.cameras.main.height);
         this.cameras.main.startFollow(this.glider, true, 0.1, 0.1);
         this.cameras.main.setFollowOffset(-this.cameras.main.width / 4, 0);
-        this.cameras.main.roundPixels = true; // Ensure pixel perfect rendering
+        this.cameras.main.roundPixels = true;
 
-        // Create groups for game objects
-        this.obstacles = this.physics.add.group();
-        this.collectibles = this.add.group();
-        this.windZones = this.physics.add.group();
-        this.particles = this.add.group(); // Changed to regular group as particles don't need physics
-
-        // Wind system
+        /* 7️⃣  Wind‑swipe input */
         this.windController = {
             strength: 0,
             direction: 0,
             isSwiping: false,
-            startX: 0,
-            startY: 0,
-            startTime: 0
+            startX: 0, startY: 0, startTime: 0
         };
-
-        // Input handling for swipe
-        this.input.on('pointerdown', this.startSwipe, this);
+        this.input.on('pointerdown', this.startSwipe,  this);
         this.input.on('pointermove', this.updateSwipe, this);
-        this.input.on('pointerup', this.endSwipe, this);
+        this.input.on('pointerup',   this.endSwipe,    this);
 
-        // Start UI scene
+        /* 8️⃣  UI overlay */
         this.scene.launch('UIScene');
 
-        // Generate initial level
+        /* 9️⃣  Level bootstrap (3 chunks so the start feels full) */
         this.generateLevel();
-        this.generateLevel(); // Generate second set for smoother start
-        this.generateLevel(); // Generate third set for even smoother start
+        this.generateLevel();
+        this.generateLevel();
 
-        // Start game loop
-        this.time.addEvent({
-            delay: 1000,
-            callback: this.updateDifficulty,
-            callbackScope: this,
-            loop: true
-        });
+        /* 🔟  Difficulty scaling – once per second */
+        this.time.addEvent({ delay: 1000, callback: this.updateDifficulty, callbackScope: this, loop: true });
     }
 
     createBackground() {
@@ -126,34 +117,22 @@ export default class GameScene extends Phaser.Scene {
     createGround() {
         // Create ground that extends with the camera. Using tileSprite for infinite scroll.
         // Its visible width will always match the camera's width, but its content will tile.
-        this.ground = this.add.tileSprite(
-            0,
-            this.cameras.main.height - 50,
-            this.cameras.main.width, // Set initial visible width to camera width
-            50,
-            'ground'
-        ).setOrigin(0,0);
-        this.ground.setScrollFactor(0); // Make it fixed to camera's Y, X will be managed by tilePositionX
-        this.physics.add.existing(this.ground, true);
+        this.ground = this.add.tileSprite(0, this.cameras.main.height - 50, this.cameras.main.width, 50, 'ground')
+            .setOrigin(0, 0);
+        this.ground.setScrollFactor(0);
+        this.physics.add.existing(this.ground, true); // static body
 
         // Removed physics.world.setBounds - rely on camera bounds and manual checks for infinite runner
     }
 
     createGlider() {
         this.glider = this.physics.add.sprite(200, this.cameras.main.height / 2, 'glider');
-        this.glider.setScale(1); // Adjust scale for placeholder glider
-        // Set collideWorldBounds to false as we want infinite horizontal movement
-        // Glider will only collide with ground and obstacles, not invisible side walls.
         this.glider.setCollideWorldBounds(false);
-        
-        // Improved glider physics for more realistic gliding
-        this.glider.body.setBounce(0.1); // Reduced bounce for smoother feel
-        this.glider.body.setDrag(0.985); // Slight air resistance
-        this.glider.body.setMaxVelocity(400, 300); // Separate X and Y max velocities
-        this.glider.body.setAngularDrag(0.8); // More angular resistance for stability
-        
-        // Initialize glider with forward momentum
-        this.glider.body.velocity.x = 100;
+        this.glider.setBounce(0.1);
+        this.glider.body.setDrag(0.985);
+        this.glider.body.setMaxVelocity(400, 300);
+        this.glider.body.setAngularDrag(0.8);
+        this.glider.body.velocity.x = 100; // initial forward motion
     }
 
     startSwipe(pointer) {
@@ -247,16 +226,16 @@ export default class GameScene extends Phaser.Scene {
             const centerY = Phaser.Math.Between(100, this.cameras.main.height - 100);
 
             // Upper obstacle
-            const upperObstacle = this.obstacles.create(spawnX, 0, 'obstacle');
-            upperObstacle.setSize(60, centerY - gapSize / 2);
-            upperObstacle.setOrigin(0, 0);
-            upperObstacle.setImmovable(true);
+            const upperObstacle = this.obstacles.create(spawnX, 0, 'obstacle')
+                .setSize(60, centerY - gapSize / 2, false)
+                .setOrigin(0, 0)
+                .refreshBody();
 
             // Lower obstacle
-            const lowerObstacle = this.obstacles.create(spawnX, centerY + gapSize / 2, 'obstacle');
-            lowerObstacle.setSize(60, this.cameras.main.height - (centerY + gapSize / 2));
-            lowerObstacle.setOrigin(0, 0);
-            lowerObstacle.setImmovable(true);
+            const lowerObstacle = this.obstacles.create(spawnX, centerY + gapSize / 2, 'obstacle')
+                .setSize(60, this.cameras.main.height - (centerY + gapSize / 2), false)
+                .setOrigin(0, 0)
+                .refreshBody();
 
             // Add collectible in gap
             if (Phaser.Math.Between(0, 1) === 1) {
@@ -299,76 +278,48 @@ export default class GameScene extends Phaser.Scene {
 
         const deltaTime = this.game.loop.delta;
 
-        // Update the size of the ground tileSprite to match the camera's current view
+        // Keep ground width in sync with camera size and scroll position
         this.ground.width = this.cameras.main.width;
+        this.ground.tilePositionX = this.cameras.main.scrollX;
 
-        // Background color is handled by camera.setBackgroundColor() - no need for explicit sky graphic updates
-        this.ground.tilePositionX = this.cameras.main.scrollX; // Ground scrolls at normal speed
-
+        // Distance / time tracking
         this.gameTime += deltaTime;
         this.distance = this.glider.x * 0.05;
         this.events.emit('updateDistance', this.distance);
 
-        // Improved glider physics
+        // Physics & forces
         this.updateGliderPhysics(deltaTime);
-
-        // Apply wind effects more subtly
         if (this.windController.strength > 0) {
             this.applyWindForces(deltaTime);
         }
 
-        // Check ground collision
-        this.physics.collide(this.glider, this.ground, this.handleGroundCollision, null, this);
+        // NOTE: ground collisions handled by the static collider set up in create()
 
-        // Check obstacle collisions using distance-based detection
-        const obstacles = this.obstacles.getChildren();
-        for (let i = 0; i < obstacles.length; i++) {
-            const obstacle = obstacles[i];
-            // Only check if obstacle is active and within a reasonable distance of the glider
-            if (obstacle.active && 
-                Math.abs(this.glider.x - obstacle.x) < 200 && // Increased horizontal check distance
-                Math.abs(this.glider.y - obstacle.y) < 300) { // Increased vertical check distance
-                const distance = Phaser.Math.Distance.Between(
-                    this.glider.x, this.glider.y,
-                    obstacle.x, obstacle.y
-                );
-                if (distance < 80) { // Increased collision radius
-                    this.handleObstacleCollision(this.glider, obstacle);
-                    break;
-                }
-            }
-        }
-
-        // Check wind zone collisions
+        // Wind‑zone overlap
         this.physics.overlap(this.glider, this.windZones, this.handleWindZoneCollision, null, this);
 
-        // Check star collection using distance
+        // Star collection by distance check
         const stars = this.collectibles.getChildren();
         for (let i = 0; i < stars.length; i++) {
             const star = stars[i];
-            // Only check if star is active and within a reasonable distance of the camera's view
             if (star.active && star.x > this.cameras.main.scrollX - 100 && star.x < this.cameras.main.scrollX + this.cameras.main.width + 100) {
-                const distance = Phaser.Math.Distance.Between(
-                    this.glider.x, this.glider.y,
-                    star.x, star.y
-                );
-                if (distance < 30) {  // Collection radius
+                const d = Phaser.Math.Distance.Between(this.glider.x, this.glider.y, star.x, star.y);
+                if (d < 30) {
                     this.handleCollectibleCollision(this.glider, star);
                     break;
                 }
             }
         }
 
-        // Generate new level content when glider approaches the last spawn point
-        // Ensure generation happens well within the visible area
-        if (this.glider.x > this.lastSpawnX - (this.cameras.main.width * 0.75)) { // Trigger generation much sooner
+        // Spawn more level ahead of the player
+        if (this.glider.x > this.lastSpawnX - this.cameras.main.width * 0.75) {
             this.generateLevel();
         }
 
-        // Clean up off-screen objects that are behind the camera
+        // Clean‑up off‑screen objects
         this.cleanupObjects();
 
-        // Check if glider is outside vertical world bounds (top or bottom) and trigger game over
+        // Vertical out‑of‑bounds check
         if (this.glider.y < 0 || this.glider.y > this.cameras.main.height) {
             this.gameOver();
         }
