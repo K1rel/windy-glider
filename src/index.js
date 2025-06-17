@@ -15,7 +15,7 @@ const config = {
             debug: false
         }
     },
-    scene: [BootScene, GameScene, UIScene],
+    scene: [BootScene, GameScene],
     scale: {
         mode: Phaser.Scale.RESIZE,
         autoCenter: Phaser.Scale.CENTER_BOTH

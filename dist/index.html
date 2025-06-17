@@ -1,11 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Windy Glider</title>
-    <style>
-        body {
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Windy Glider</title><style>body {
             margin: 0;
             padding: 0;
             background: linear-gradient(to bottom, #87CEEB 0%, #98D8E8 100%);
@@ -88,34 +81,4 @@
         
         .restart-btn:hover {
             background: #45a049;
-        }
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
-</head>
-<body>
-    <div id="game-container"></div>
-    <div class="ui">
-        <div>Score: <span id="score">0</span></div>
-        <div>Distance: <span id="distance">0</span>m</div>
-        <div>Lives: <span id="lives">3</span></div>
-    </div>
-    
-    <div class="wind-meter">
-        <div class="wind-fill" id="windFill"></div>
-    </div>
-    
-    <div class="instructions">
-        <div>Click to create wind gusts and guide the glider!</div>
-        <div>Avoid obstacles and collect stars</div>
-    </div>
-    
-    <div class="game-over" id="gameOver">
-        <h2>Game Over!</h2>
-        <p>Final Score: <span id="finalScore">0</span></p>
-        <p>Distance Traveled: <span id="finalDistance">0</span>m</p>
-        <button class="restart-btn" id="restartBtn">Play Again</button>
-    </div>
-
-    <script src="dist/bundle.js"></script>
-</body>
-</html> 
+        }</style><script defer="defer" src="bundle.js"></script></head><body><div id="game-container"></div><div class="ui"><div>Score: <span id="score">0</span></div><div>Distance: <span id="distance">0</span>m</div><div>Lives: <span id="lives">3</span></div></div><div class="wind-meter"><div class="wind-fill" id="windFill"></div></div><div class="instructions"><div>Click to create wind gusts and guide the glider!</div><div>Avoid obstacles and collect stars</div></div><div class="game-over" id="gameOver"><h2>Game Over!</h2><p>Final Score: <span id="finalScore">0</span></p><p>Distance Traveled: <span id="finalDistance">0</span>m</p><button class="restart-btn" id="restartBtn">Play Again</button></div></body></html>
