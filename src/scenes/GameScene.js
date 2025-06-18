@@ -117,6 +117,29 @@ export default class GameScene extends Phaser.Scene {
 
         /* — difficulty timer — */
         this.time.addEvent({ delay: 1000, loop: true, callback: () => { this.difficultyLevel++; } });
+
+        // Show wind control instructions at the start
+        this.instructionText = this.add.text(
+            cam.width / 2,
+            cam.height / 2 - 80,
+            'Swipe or drag with your mouse to create wind\nGuide the glider through the obstacles!',
+            {
+                font: '28px Arial',
+                fill: '#fff',
+                stroke: '#000',
+                strokeThickness: 6,
+                align: 'center',
+                padding: { x: 20, y: 10 },
+                backgroundColor: 'rgba(0,0,0,0.3)'
+            }
+        ).setOrigin(0.5).setDepth(1000);
+        this.tweens.add({
+            targets: this.instructionText,
+            alpha: 0,
+            delay: 3500,
+            duration: 1200,
+            onComplete: () => this.instructionText.destroy()
+        });
     }
 
     /* ───────────────────────── GROUND */
