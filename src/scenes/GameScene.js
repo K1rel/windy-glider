@@ -277,8 +277,8 @@ export default class GameScene extends Phaser.Scene {
               • gravity is the constant GRAVITY_PER_FRAME downward
               • lift grows linearly with forward speed after 120 px/s
            At ~200 px/s you're roughly level; slower sinks, faster climbs a bit. */
-        const lift = Phaser.Math.Clamp((v.x - 120) * 0.0013, 0, 0.12)
-        v.y += GRAVITY_PER_FRAME - lift
+        const lift = Phaser.Math.Clamp((v.x - 120) * 0.0008, 0, 0.10); // much less lift
+        v.y += GRAVITY_PER_FRAME - lift + 0.04; // always a net downward force
 
         /* 3. Same quadratic drag idea you had, but a hair softer */
         const dragFactor = Math.pow(v.length() / 300, 2) * 0.92
