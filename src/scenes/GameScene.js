@@ -15,6 +15,52 @@ export default class GameScene extends Phaser.Scene {
     preload () {
         /* minimal textures so the demo runs without external assets */
         // All textures are now loaded in BootScene from PNGs.
+        // Generate a green bonus star texture for 10-point stars
+        if (!this.textures.exists('star_green')) {
+            const g = this.add.graphics();
+            g.fillStyle(0x33ff33);
+            g.lineStyle(4, 0xffffff);
+            g.beginPath();
+            for (let i = 0; i < 5; i++) {
+                const angle = Phaser.Math.DegToRad(i * 72 - 90);
+                const x = 25 + Math.cos(angle) * 22;
+                const y = 25 + Math.sin(angle) * 22;
+                if (i === 0) g.moveTo(x, y);
+                else g.lineTo(x, y);
+                const innerAngle = Phaser.Math.DegToRad(i * 72 + 36 - 90);
+                const ix = 25 + Math.cos(innerAngle) * 10;
+                const iy = 25 + Math.sin(innerAngle) * 10;
+                g.lineTo(ix, iy);
+            }
+            g.closePath();
+            g.fillPath();
+            g.strokePath();
+            g.generateTexture('star_green', 50, 50);
+            g.destroy();
+        }
+        // Generate a red bonus star texture for 50-point stars
+        if (!this.textures.exists('star_red')) {
+            const g = this.add.graphics();
+            g.fillStyle(0xff3333);
+            g.lineStyle(4, 0xffffff);
+            g.beginPath();
+            for (let i = 0; i < 5; i++) {
+                const angle = Phaser.Math.DegToRad(i * 72 - 90);
+                const x = 25 + Math.cos(angle) * 22;
+                const y = 25 + Math.sin(angle) * 22;
+                if (i === 0) g.moveTo(x, y);
+                else g.lineTo(x, y);
+                const innerAngle = Phaser.Math.DegToRad(i * 72 + 36 - 90);
+                const ix = 25 + Math.cos(innerAngle) * 10;
+                const iy = 25 + Math.sin(innerAngle) * 10;
+                g.lineTo(ix, iy);
+            }
+            g.closePath();
+            g.fillPath();
+            g.strokePath();
+            g.generateTexture('star_red', 50, 50);
+            g.destroy();
+        }
     }
 
     /* ═════════════════════════ CREATE ═════════════════════════ */
@@ -32,7 +78,7 @@ export default class GameScene extends Phaser.Scene {
 
         /* — groups — */
         this.obstacles    = this.physics.add.staticGroup();
-        this.collectibles = this.add.group();
+        this.collectibles = this.physics.add.group();
         this.windZones    = this.physics.add.group();
         this.spikeys = this.physics.add.group();
         this.lasers  = this.physics.add.group();
@@ -48,6 +94,7 @@ export default class GameScene extends Phaser.Scene {
         this.physics.add.overlap(this.glider, this.spikeys, this.handleSpikeyCollision, null, this);
         this.physics.add.overlap(this.glider, this.lasers,  this.handleLaserCollision,  null, this);
         this.physics.add.overlap(this.glider, this.birds,   this.handleBirdCollision,   null, this);
+        this.physics.add.overlap(this.glider, this.collectibles, this.handleCollectibleCollision, null, this);
 
         /* — camera follow — */
         const cam = this.cameras.main;
@@ -159,9 +206,21 @@ export default class GameScene extends Phaser.Scene {
                     sx > ob.x - 30 && sx < ob.x + ob.displayWidth + 30 &&
                     sy > ob.y      && sy < ob.y + ob.displayHeight);
                 if (!overlaps) {
-                    this.collectibles.create(sx, sy, 'star')
+                    const bonusType = Phaser.Math.Between(0, 9);
+                    let points, key;
+                    if (bonusType === 0) { // 10% chance, red 50pt
+                        points = 50;
+                        key = 'star_red';
+                    } else if (bonusType <= 2) { // 20% chance, green 10pt
+                        points = 10;
+                        key = 'star_green';
+                    } else { // 70% chance, normal star
+                        points = 1;
+                        key = 'star';
+                    }
+                    this.collectibles.create(sx, sy, key)
                         .setScale(0.5)
-                        .setData('points', Phaser.Math.Between(0, 9) ? 10 : 50);
+                        .setData('points', points);
                     break;
                 }
             }
@@ -215,13 +274,6 @@ export default class GameScene extends Phaser.Scene {
 
         /* wind zone influence */
         this.physics.overlap(this.glider, this.windZones, this.handleWindZoneCollision, null, this);
-
-        /* star collection */
-        this.collectibles.getChildren().forEach(star => {
-            if (!star.active) return;
-            const d = Phaser.Math.Distance.Between(this.glider.x, this.glider.y, star.x, star.y);
-            if (d < 30) this.handleCollectibleCollision(this.glider, star);
-        });
 
         /* spawn ahead */
         if (this.glider.x > this.lastSpawnX - MIN_HORIZONTAL_GAP)
