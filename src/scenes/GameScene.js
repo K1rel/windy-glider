@@ -83,6 +83,7 @@ export default class GameScene extends Phaser.Scene {
         this.spikeys = this.physics.add.group();
         this.lasers  = this.physics.add.group();
         this.birds   = this.physics.add.group();
+        this.hearts = this.physics.add.group();
 
         /* — world pieces — */
         this.createGround();
@@ -95,6 +96,7 @@ export default class GameScene extends Phaser.Scene {
         this.physics.add.overlap(this.glider, this.lasers,  this.handleLaserCollision,  null, this);
         this.physics.add.overlap(this.glider, this.birds,   this.handleBirdCollision,   null, this);
         this.physics.add.overlap(this.glider, this.collectibles, this.handleCollectibleCollision, null, this);
+        this.physics.add.overlap(this.glider, this.hearts, this.handleHeartCollision, null, this);
 
         /* — camera follow — */
         const cam = this.cameras.main;
@@ -272,6 +274,13 @@ export default class GameScene extends Phaser.Scene {
             const bird = this.birds.create(spawnX + Phaser.Math.Between(200, 400), birdY, 'bird');
             bird.setVelocityX(-Phaser.Math.Between(120, 200));
             bird.setData('flap', 0);
+        }
+
+        /* Add heart (extra life) with low probability */
+        if (Phaser.Math.Between(0, 14) === 0) { // ~1 in 15 chance
+            const heartY = Phaser.Math.Between(80, this.ground.y - 40);
+            const heart = this.hearts.create(spawnX + Phaser.Math.Between(100, 300), heartY, 'heart');
+            heart.setScale(0.7);
         }
 
         this.lastSpawnX = spawnX;
@@ -459,6 +468,12 @@ export default class GameScene extends Phaser.Scene {
         this.time.delayedCall(1000, () => glider.setAlpha(1));
     }
 
+    handleHeartCollision (glider, heart) {
+        heart.destroy();
+        this.lives++;
+        this.events.emit('updateLives', this.lives);
+    }
+
     /* ───────────────── HOUSEKEEPING */
     cleanupObjects () {
         const cutoff = this.cameras.main.scrollX - 100;
@@ -467,7 +482,8 @@ export default class GameScene extends Phaser.Scene {
             ...this.windZones.getChildren(),
             ...this.spikeys.getChildren(),
             ...this.lasers.getChildren(),
-            ...this.birds.getChildren()]
+            ...this.birds.getChildren(),
+            ...this.hearts.getChildren()]
             .forEach(obj => { if (obj.x + obj.displayWidth < cutoff) obj.destroy(); });
     }
 

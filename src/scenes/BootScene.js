@@ -49,6 +49,7 @@ export default class BootScene extends Phaser.Scene {
         this.load.image('spikey', 'assets/spikey.png');
         this.load.image('laser', 'assets/laser.png');
         this.load.image('bird', 'assets/bird.png');
+        this.load.image('heart', 'assets/heart.png');
     }
 
     create() {

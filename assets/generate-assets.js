@@ -218,4 +218,24 @@ birdCtx.fillStyle = '#222';
 birdCtx.fill();
 fs.writeFileSync('./src/assets/bird.png', birdCanvas.toBuffer());
 
+// Generate heart (extra life)
+const heartCanvas = createCanvas(40, 36);
+const heartCtx = heartCanvas.getContext('2d');
+heartCtx.save();
+heartCtx.translate(20, 8);
+heartCtx.beginPath();
+heartCtx.moveTo(0, 6);
+heartCtx.bezierCurveTo(0, 0, -10, 0, -10, 7);
+heartCtx.bezierCurveTo(-10, 14, 0, 17, 0, 20);
+heartCtx.bezierCurveTo(0, 17, 10, 14, 10, 7);
+heartCtx.bezierCurveTo(10, 0, 0, 0, 0, 6);
+heartCtx.closePath();
+heartCtx.fillStyle = '#ff3a3a';
+heartCtx.fill();
+heartCtx.lineWidth = 3;
+heartCtx.strokeStyle = '#fff';
+heartCtx.stroke();
+heartCtx.restore();
+fs.writeFileSync('./src/assets/heart.png', heartCanvas.toBuffer());
+
 console.log('Assets generated successfully!'); 
