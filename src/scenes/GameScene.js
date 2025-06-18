@@ -113,7 +113,7 @@ export default class GameScene extends Phaser.Scene {
         this.scene.launch('UIScene');
 
         /* — bootstrap level — */
-        this.generateLevel(); this.generateLevel(); this.generateLevel();
+        this.generateLevel();
 
         /* — difficulty timer — */
         this.time.addEvent({ delay: 1000, loop: true, callback: () => { this.difficultyLevel++; } });
