@@ -6,7 +6,7 @@ import Phaser from 'phaser';
 const MIN_VERTICAL_GAP   = 160;   // smallest hole between two pillars
 const MIN_HORIZONTAL_GAP = 400;   // min. distance between pillar pairs
 
-const GRAVITY_PER_FRAME = 0.25   // ↓ smaller than the old 0.35 for a gentler sink
+const GRAVITY_PER_FRAME = 0.42   // ↑ increased for a harder, faster sink
 
 export default class GameScene extends Phaser.Scene {
     constructor () { super('GameScene'); }
@@ -14,17 +14,7 @@ export default class GameScene extends Phaser.Scene {
     /* ═════════════════════════ PRELOAD ═════════════════════════ */
     preload () {
         /* minimal textures so the demo runs without external assets */
-        const tex = (key, w, h, draw) => {
-            const g = this.add.graphics();
-            draw(g);
-            g.generateTexture(key, w, h);
-            g.destroy();
-        };
-        tex('glider',   50, 20, g => g.fillStyle(0xffffff).fillRect(0,0,50,20));
-        tex('obstacle', 60,200, g => g.fillStyle(0x8B4513).fillRect(0,0,60,200));
-        tex('star',     50, 50, g => g.fillStyle(0xffff00).fillCircle(25,25,25));
-        tex('wind',     80,100, g => g.fillStyle(0xADD8E6,0.5).fillRect(0,0,80,100));
-        tex('ground',   50, 50, g => g.fillStyle(0x00ff00).fillRect(0,0,50,50));
+        // All textures are now loaded in BootScene from PNGs.
     }
 
     /* ═════════════════════════ CREATE ═════════════════════════ */
@@ -44,6 +34,9 @@ export default class GameScene extends Phaser.Scene {
         this.obstacles    = this.physics.add.staticGroup();
         this.collectibles = this.add.group();
         this.windZones    = this.physics.add.group();
+        this.spikeys = this.physics.add.group();
+        this.lasers  = this.physics.add.group();
+        this.birds   = this.physics.add.group();
 
         /* — world pieces — */
         this.createGround();
@@ -52,6 +45,9 @@ export default class GameScene extends Phaser.Scene {
         /* — collisions — */
         this.physics.add.collider(this.glider, this.obstacles, this.handleObstacleCollision, null, this);
         this.physics.add.collider(this.glider, this.ground,     this.handleGroundCollision,   null, this);
+        this.physics.add.overlap(this.glider, this.spikeys, this.handleSpikeyCollision, null, this);
+        this.physics.add.overlap(this.glider, this.lasers,  this.handleLaserCollision,  null, this);
+        this.physics.add.overlap(this.glider, this.birds,   this.handleBirdCollision,   null, this);
 
         /* — camera follow — */
         const cam = this.cameras.main;
@@ -144,7 +140,7 @@ export default class GameScene extends Phaser.Scene {
         /* guaranteed star in the gap (bigger) */
         this.collectibles.create(spawnX + 30, centerY, 'star')
             .setScale(0.5)
-            .setData('points', 10);
+            .setData('points', 1);
 
         /* wind zone (optional) */
         if (Phaser.Math.Between(0,1)) {
@@ -169,6 +165,31 @@ export default class GameScene extends Phaser.Scene {
                     break;
                 }
             }
+        }
+
+        /* Add spikey ball (spins, moves up/down) */
+        if (Phaser.Math.Between(0, 2) === 0) {
+            const spikeyY = Phaser.Math.Between(100, groundTop - 60);
+            const spikey = this.spikeys.create(spawnX + Phaser.Math.Between(100, 250), spikeyY, 'spikey');
+            spikey.setCircle(24).setBounce(1, 1).setCollideWorldBounds(false);
+            spikey.setData('spin', Phaser.Math.Between(-4, 4) || 2);
+            spikey.setData('vy', Phaser.Math.Between(-60, 60) || 40);
+        }
+        /* Add laser (horizontal, can move up/down, animates on/off) */
+        if (Phaser.Math.Between(0, 2) === 0) {
+            const laserY = Phaser.Math.Between(120, groundTop - 40);
+            const laser = this.lasers.create(spawnX + Phaser.Math.Between(150, 300), laserY, 'laser');
+            laser.setImmovable(true);
+            laser.setData('timer', 0);
+            laser.setData('active', true);
+            laser.setAlpha(1);
+        }
+        /* Add bird (flies left, can be at any height) */
+        if (Phaser.Math.Between(0, 2) === 0) {
+            const birdY = Phaser.Math.Between(80, groundTop - 40);
+            const bird = this.birds.create(spawnX + Phaser.Math.Between(200, 400), birdY, 'bird');
+            bird.setVelocityX(-Phaser.Math.Between(120, 200));
+            bird.setData('flap', 0);
         }
 
         this.lastSpawnX = spawnX;
@@ -212,6 +233,36 @@ export default class GameScene extends Phaser.Scene {
         /* grass collision */
         if (this.glider.y + this.glider.displayHeight / 2 >= this.ground.y)
             this.gameOver();
+
+        /* Spikey balls: spin and bounce up/down */
+        this.spikeys.getChildren().forEach(spikey => {
+            spikey.angle += spikey.getData('spin');
+            spikey.y += spikey.getData('vy') * (this.game.loop.delta / 1000);
+            /* Bounce off top/bottom */
+            if (spikey.y < 60) spikey.setData('vy', Math.abs(spikey.getData('vy')));
+            if (spikey.y > this.ground.y - 24) spikey.setData('vy', -Math.abs(spikey.getData('vy')));
+        });
+        /* Lasers: animate on/off */
+        this.lasers.getChildren().forEach(laser => {
+            let t = laser.getData('timer') + this.game.loop.delta;
+            laser.setData('timer', t);
+            /* 1.5s on, 1s off */
+            if (t % 2500 < 1500) {
+                laser.setAlpha(1);
+                laser.setData('active', true);
+            } else {
+                laser.setAlpha(0.3);
+                laser.setData('active', false);
+            }
+        });
+        /* Birds: flap and move left */
+        this.birds.getChildren().forEach(bird => {
+            let flap = bird.getData('flap') + this.game.loop.delta;
+            bird.setData('flap', flap);
+            bird.y += Math.sin(flap / 200) * 0.7;
+            /* Remove if off screen */
+            if (bird.x < this.cameras.main.scrollX - 100) bird.destroy();
+        });
     }
 
     /* ───────────────── PHYSICS HELPERS */
@@ -225,8 +276,8 @@ export default class GameScene extends Phaser.Scene {
         /* 2. Gravity vs. a touch of lift
               • gravity is the constant GRAVITY_PER_FRAME downward
               • lift grows linearly with forward speed after 120 px/s
-           At ~200 px/s you’re roughly level; slower sinks, faster climbs a bit. */
-        const lift = Phaser.Math.Clamp((v.x - 120) * 0.002, 0, 0.20)
+           At ~200 px/s you're roughly level; slower sinks, faster climbs a bit. */
+        const lift = Phaser.Math.Clamp((v.x - 120) * 0.0013, 0, 0.12)
         v.y += GRAVITY_PER_FRAME - lift
 
         /* 3. Same quadratic drag idea you had, but a hair softer */
@@ -238,14 +289,14 @@ export default class GameScene extends Phaser.Scene {
 
         /* 5. Tilt sprite toward real flight path (purely visual) */
         const target = Phaser.Math.RadToDeg(Math.atan2(v.y, v.x))
-        this.glider.angle = Phaser.Math.Linear(this.glider.angle, target, 0.12)
+        this.glider.angle = Phaser.Math.Linear(this.glider.angle, target, 0.08)
     }
 
     applyWindForces (dtMs) {
         const w  = this.windController;
         const v  = this.glider.body.velocity;
 
-        // convert milliseconds to “60 fps–frames”
+        // convert milliseconds to "60 fps–frames"
         const dt = dtMs / 16.67;                 // 1 ≈ one frame at 60 FPS
         const accel = 0.12 * dt;                 // original feel
 
@@ -297,12 +348,51 @@ export default class GameScene extends Phaser.Scene {
         this.glider.body.velocity.y += zone.getData('forceY') * 0.1;
     }
 
+    handleSpikeyCollision (glider, spikey) {
+        spikey.destroy();
+        this.lives--;
+        this.events.emit('updateLives', this.lives);
+        if (this.lives <= 0) { this.gameOver(); return; }
+        glider.body.velocity.x = Math.max(50, glider.body.velocity.x * 0.3);
+        glider.body.velocity.y = -Math.abs(glider.body.velocity.y) * 0.7;
+        glider.x -= 15;
+        glider.setAlpha(0.5);
+        this.time.delayedCall(1000, () => glider.setAlpha(1));
+    }
+
+    handleLaserCollision (glider, laser) {
+        if (!laser.getData('active')) return;
+        this.lives--;
+        this.events.emit('updateLives', this.lives);
+        if (this.lives <= 0) { this.gameOver(); return; }
+        glider.body.velocity.x = Math.max(50, glider.body.velocity.x * 0.3);
+        glider.body.velocity.y = -Math.abs(glider.body.velocity.y) * 0.7;
+        glider.x -= 15;
+        glider.setAlpha(0.5);
+        this.time.delayedCall(1000, () => glider.setAlpha(1));
+    }
+
+    handleBirdCollision (glider, bird) {
+        bird.destroy();
+        this.lives--;
+        this.events.emit('updateLives', this.lives);
+        if (this.lives <= 0) { this.gameOver(); return; }
+        glider.body.velocity.x = Math.max(50, glider.body.velocity.x * 0.3);
+        glider.body.velocity.y = -Math.abs(glider.body.velocity.y) * 0.7;
+        glider.x -= 15;
+        glider.setAlpha(0.5);
+        this.time.delayedCall(1000, () => glider.setAlpha(1));
+    }
+
     /* ───────────────── HOUSEKEEPING */
     cleanupObjects () {
         const cutoff = this.cameras.main.scrollX - 100;
         [...this.obstacles.getChildren(),
             ...this.collectibles.getChildren(),
-            ...this.windZones.getChildren()]
+            ...this.windZones.getChildren(),
+            ...this.spikeys.getChildren(),
+            ...this.lasers.getChildren(),
+            ...this.birds.getChildren()]
             .forEach(obj => { if (obj.x + obj.displayWidth < cutoff) obj.destroy(); });
     }
 
