@@ -78,7 +78,49 @@ export default class GameScene extends Phaser.Scene {
         this._boostFlashTimer = 0;
 
         /* — sky — */
+        // Smooth vertical gradient sky using an offscreen canvas
+        const cam = this.cameras.main;
+        const gradCanvas = document.createElement('canvas');
+        gradCanvas.width = 1;
+        gradCanvas.height = cam.height;
+        const ctx = gradCanvas.getContext('2d');
+        const gradient = ctx.createLinearGradient(0, 0, 0, cam.height);
+        gradient.addColorStop(0, '#87ceeb'); // top
+        gradient.addColorStop(1, '#b3e0ff'); // bottom
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 1, cam.height);
+
+        if (this.textures.exists('sky-gradient')) this.textures.remove('sky-gradient');
+        this.textures.addImage('sky-gradient', gradCanvas);
+
+        const skyImg = this.add.image(0, 0, 'sky-gradient')
+            .setOrigin(0, 0)
+            .setDisplaySize(cam.width, cam.height)
+            .setScrollFactor(0)
+            .setDepth(-10);
         this.cameras.main.setBackgroundColor(0x87ceeb);
+
+        // Parallax clouds (more, always visible)
+        this.cloudsFar = [];
+        this.cloudsNear = [];
+        for (let i = 0; i < 10; i++) { // more far clouds
+            const c = this.add.image(
+                this.cameras.main.scrollX + Math.random() * this.cameras.main.width,
+                40 + Math.random() * 120,
+                'cloud'
+            ).setAlpha(0.25).setScale(1.2 + Math.random() * 0.5);
+            c.setDepth(-8);
+            this.cloudsFar.push(c);
+        }
+        for (let i = 0; i < 8; i++) { // more near clouds
+            const c = this.add.image(
+                this.cameras.main.scrollX + Math.random() * this.cameras.main.width,
+                160 + Math.random() * 120,
+                'cloud'
+            ).setAlpha(0.45).setScale(0.8 + Math.random() * 0.5);
+            c.setDepth(-7);
+            this.cloudsNear.push(c);
+        }
 
         /* — groups — */
         this.obstacles    = this.physics.add.staticGroup();
@@ -103,7 +145,6 @@ export default class GameScene extends Phaser.Scene {
         this.physics.add.overlap(this.glider, this.hearts, this.handleHeartCollision, null, this);
 
         /* — camera follow — */
-        const cam = this.cameras.main;
         cam.setBounds(0, 0, Number.MAX_SAFE_INTEGER, cam.height);
         cam.startFollow(this.glider, true, 0.1, 0.1);
         cam.setFollowOffset(-cam.width / 4, 0);
@@ -374,6 +415,22 @@ export default class GameScene extends Phaser.Scene {
         } else {
             this.glider.clearTint();
         }
+
+        // Parallax cloud movement
+        this.cloudsFar.forEach(cloud => {
+            cloud.x -= 0.08 * (this.cameras.main.scrollX - cloud.x) * 0.01 + 0.12;
+            if (cloud.x < this.cameras.main.scrollX - 200) {
+                cloud.x = this.cameras.main.scrollX + this.cameras.main.width + 100 * Math.random();
+                cloud.y = 40 + Math.random() * 120;
+            }
+        });
+        this.cloudsNear.forEach(cloud => {
+            cloud.x -= 0.18 * (this.cameras.main.scrollX - cloud.x) * 0.01 + 0.22;
+            if (cloud.x < this.cameras.main.scrollX - 200) {
+                cloud.x = this.cameras.main.scrollX + this.cameras.main.width + 100 * Math.random();
+                cloud.y = 160 + Math.random() * 120;
+            }
+        });
     }
 
     /* ───────────────── PHYSICS HELPERS */
