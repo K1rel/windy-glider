@@ -7,17 +7,10 @@ if (!fs.existsSync('./assets')) {
 }
 
 // Generate glider
-const gliderCanvas = createCanvas(64, 32);
-const gliderCtx = gliderCanvas.getContext('2d');
-gliderCtx.fillStyle = '#FFFFFF';
-gliderCtx.fillRect(0, 0, 64, 32);
-gliderCtx.fillStyle = '#CCCCCC';
-gliderCtx.fillRect(5, 2, 54, 2);
-gliderCtx.fillRect(5, 28, 54, 2);
-gliderCtx.fillStyle = '#AAAAAA';
-gliderCtx.fillRect(0, 0, 3, 4);
-gliderCtx.fillRect(0, 28, 3, 4);
-fs.writeFileSync('./assets/glider.png', gliderCanvas.toBuffer());
+if (!fs.existsSync('./assets/paper_plane.png')) {
+    console.error('⚠  paper_plane.png not found in ./assets — please add it first.');
+    process.exit(1);
+}
 
 // Generate obstacle
 const obstacleCanvas = createCanvas(60, 200);

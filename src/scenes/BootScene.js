@@ -40,7 +40,7 @@ export default class BootScene extends Phaser.Scene {
         });
         
         // Load game assets
-        this.load.image('glider', 'assets/glider.png');
+        this.load.image('glider', 'assets/paper_plane.png');
         this.load.image('obstacle', 'assets/obstacle.png');
         this.load.image('star', 'assets/star.png');
         this.load.image('wind', 'assets/wind.png');

@@ -203,6 +203,7 @@ export default class GameScene extends Phaser.Scene {
     createGlider () {
         const cam = this.cameras.main;
         this.glider = this.physics.add.sprite(200, cam.height / 2, 'glider');
+        this.glider.setDisplaySize(96, 48).setOrigin(0.5);
         const body = this.glider.body;
         body.setBounce(0.1)
             .setDrag(0.985)
