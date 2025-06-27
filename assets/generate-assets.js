@@ -2,8 +2,8 @@ const fs = require('fs');
 const { createCanvas } = require('canvas');
 
 // Create assets directory if it doesn't exist
-if (!fs.existsSync('./src/assets')) {
-    fs.mkdirSync('./src/assets', { recursive: true });
+if (!fs.existsSync('./assets')) {
+    fs.mkdirSync('./assets', { recursive: true });
 }
 
 // Generate glider
@@ -17,7 +17,7 @@ gliderCtx.fillRect(5, 28, 54, 2);
 gliderCtx.fillStyle = '#AAAAAA';
 gliderCtx.fillRect(0, 0, 3, 4);
 gliderCtx.fillRect(0, 28, 3, 4);
-fs.writeFileSync('./src/assets/glider.png', gliderCanvas.toBuffer());
+fs.writeFileSync('./assets/glider.png', gliderCanvas.toBuffer());
 
 // Generate obstacle
 const obstacleCanvas = createCanvas(60, 200);
@@ -28,7 +28,7 @@ obstacleCtx.fillStyle = '#654321';
 for (let i = 0; i < 200; i += 20) {
     obstacleCtx.fillRect(5, i, 50, 2);
 }
-fs.writeFileSync('./src/assets/obstacle.png', obstacleCanvas.toBuffer());
+fs.writeFileSync('./assets/obstacle.png', obstacleCanvas.toBuffer());
 
 // Generate star
 const starCanvas = createCanvas(40, 40);
@@ -49,7 +49,7 @@ for (let i = 0; i < 5; i++) {
 }
 starCtx.closePath();
 starCtx.fill();
-fs.writeFileSync('./src/assets/star.png', starCanvas.toBuffer());
+fs.writeFileSync('./assets/star.png', starCanvas.toBuffer());
 
 // Generate wind
 const windCanvas = createCanvas(32, 32);
@@ -63,7 +63,7 @@ windCtx.lineTo(32, 16);
 windCtx.lineTo(24, 24);
 windCtx.closePath();
 windCtx.fill();
-fs.writeFileSync('./src/assets/wind.png', windCanvas.toBuffer());
+fs.writeFileSync('./assets/wind.png', windCanvas.toBuffer());
 
 // Generate ground
 const groundCanvas = createCanvas(64, 50);
@@ -74,7 +74,7 @@ groundCtx.fillStyle = '#32CD32';
 for (let x = 0; x < 64; x += 10) {
     groundCtx.fillRect(x, 0, 2, Math.random() * 10 + 5);
 }
-fs.writeFileSync('./src/assets/ground.png', groundCanvas.toBuffer());
+fs.writeFileSync('./assets/ground.png', groundCanvas.toBuffer());
 
 // Generate cloud
 const cloudCanvas = createCanvas(100, 50);
@@ -85,7 +85,7 @@ cloudCtx.arc(25, 25, 20, 0, Math.PI * 2);
 cloudCtx.arc(50, 25, 25, 0, Math.PI * 2);
 cloudCtx.arc(75, 25, 20, 0, Math.PI * 2);
 cloudCtx.fill();
-fs.writeFileSync('./src/assets/cloud.png', cloudCanvas.toBuffer());
+fs.writeFileSync('./assets/cloud.png', cloudCanvas.toBuffer());
 
 // Generate spikey ball (more metallic, dangerous)
 const spikeyCanvas = createCanvas(48, 48);
@@ -121,7 +121,7 @@ spikeyCtx.arc(32, 18, 2, 0, Math.PI * 2);
 spikeyCtx.arc(18, 30, 1.5, 0, Math.PI * 2);
 spikeyCtx.arc(28, 32, 1.2, 0, Math.PI * 2);
 spikeyCtx.fill();
-fs.writeFileSync('./src/assets/spikey.png', spikeyCanvas.toBuffer());
+fs.writeFileSync('./assets/spikey.png', spikeyCanvas.toBuffer());
 
 // Generate laser (Jetpack Joyride style)
 const laserCanvas = createCanvas(120, 32);
@@ -177,7 +177,7 @@ laserCtx.shadowColor = '#ff2222';
 laserCtx.shadowBlur = 8;
 laserCtx.fill();
 laserCtx.restore();
-fs.writeFileSync('./src/assets/laser.png', laserCanvas.toBuffer());
+fs.writeFileSync('./assets/laser.png', laserCanvas.toBuffer());
 
 // Generate cartoon bird
 const birdCanvas = createCanvas(48, 32);
@@ -216,7 +216,7 @@ birdCtx.beginPath();
 birdCtx.arc(32, 15, 1, 0, Math.PI * 2);
 birdCtx.fillStyle = '#222';
 birdCtx.fill();
-fs.writeFileSync('./src/assets/bird.png', birdCanvas.toBuffer());
+fs.writeFileSync('./assets/bird.png', birdCanvas.toBuffer());
 
 // Generate heart (extra life)
 const heartCanvas = createCanvas(40, 36);
@@ -236,6 +236,106 @@ heartCtx.lineWidth = 3;
 heartCtx.strokeStyle = '#fff';
 heartCtx.stroke();
 heartCtx.restore();
-fs.writeFileSync('./src/assets/heart.png', heartCanvas.toBuffer());
+fs.writeFileSync('./assets/heart.png', heartCanvas.toBuffer());
+
+// Generate boost powerup (cool blue comet with glowing tail)
+const boostCanvas = createCanvas(40, 40);
+const boostCtx = boostCanvas.getContext('2d');
+// Draw glowing tail
+const tailGrad = boostCtx.createLinearGradient(5, 20, 35, 20);
+tailGrad.addColorStop(0, 'rgba(33,150,243,0.1)');
+tailGrad.addColorStop(0.3, 'rgba(33,150,243,0.3)');
+tailGrad.addColorStop(0.7, 'rgba(33,150,243,0.7)');
+tailGrad.addColorStop(1, 'rgba(33,150,243,1)');
+boostCtx.save();
+boostCtx.beginPath();
+boostCtx.moveTo(5, 20);
+boostCtx.quadraticCurveTo(15, 10, 35, 20);
+boostCtx.quadraticCurveTo(15, 30, 5, 20);
+boostCtx.closePath();
+boostCtx.fillStyle = tailGrad;
+boostCtx.shadowColor = '#2196f3';
+boostCtx.shadowBlur = 12;
+boostCtx.fill();
+boostCtx.restore();
+// Draw comet head
+boostCtx.save();
+boostCtx.beginPath();
+boostCtx.ellipse(32, 20, 7, 12, Math.PI / 8, 0, Math.PI * 2);
+boostCtx.fillStyle = '#fff';
+boostCtx.shadowColor = '#4fc3f7';
+boostCtx.shadowBlur = 8;
+boostCtx.fill();
+boostCtx.restore();
+// Draw blue core
+boostCtx.save();
+boostCtx.beginPath();
+boostCtx.ellipse(32, 20, 5, 8, Math.PI / 8, 0, Math.PI * 2);
+boostCtx.fillStyle = '#2196f3';
+boostCtx.shadowColor = '#1976d2';
+boostCtx.shadowBlur = 4;
+boostCtx.fill();
+boostCtx.restore();
+fs.writeFileSync('./assets/boost.png', boostCanvas.toBuffer());
+
+// Generate strength powerup (red fist)
+const strengthCanvas = createCanvas(40, 40);
+const strengthCtx = strengthCanvas.getContext('2d');
+strengthCtx.save();
+strengthCtx.translate(20, 24);
+// Palm
+strengthCtx.beginPath();
+strengthCtx.ellipse(0, 0, 10, 12, 0, 0, Math.PI * 2);
+strengthCtx.fillStyle = '#e53935';
+strengthCtx.fill();
+// Thumb
+strengthCtx.beginPath();
+strengthCtx.ellipse(-10, -6, 4, 7, Math.PI / 6, 0, Math.PI * 2);
+strengthCtx.fillStyle = '#b71c1c';
+strengthCtx.fill();
+// Fingers
+for (let i = -1.5; i <= 1.5; i++) {
+  strengthCtx.beginPath();
+  strengthCtx.ellipse(i * 5, -12, 4, 7, 0, 0, Math.PI * 2);
+  strengthCtx.fillStyle = '#d32f2f';
+  strengthCtx.fill();
+}
+strengthCtx.restore();
+fs.writeFileSync('./assets/strength.png', strengthCanvas.toBuffer());
+
+// Generate coin powerup (golden coin with a star)
+const coinCanvas = createCanvas(40, 40);
+const coinCtx = coinCanvas.getContext('2d');
+// Coin base
+coinCtx.beginPath();
+coinCtx.arc(20, 20, 16, 0, Math.PI * 2);
+coinCtx.fillStyle = '#ffd700';
+coinCtx.shadowColor = '#ffec80';
+coinCtx.shadowBlur = 8;
+coinCtx.fill();
+coinCtx.shadowBlur = 0;
+coinCtx.lineWidth = 3;
+coinCtx.strokeStyle = '#bfa100';
+coinCtx.stroke();
+// Star in center
+coinCtx.save();
+coinCtx.translate(20, 20);
+coinCtx.beginPath();
+for (let i = 0; i < 5; i++) {
+  const angle = (i * 2 * Math.PI) / 5 - Math.PI / 2;
+  const x = Math.cos(angle) * 7;
+  const y = Math.sin(angle) * 7;
+  if (i === 0) coinCtx.moveTo(x, y);
+  else coinCtx.lineTo(x, y);
+  const innerAngle = angle + Math.PI / 5;
+  const ix = Math.cos(innerAngle) * 3.5;
+  const iy = Math.sin(innerAngle) * 3.5;
+  coinCtx.lineTo(ix, iy);
+}
+coinCtx.closePath();
+coinCtx.fillStyle = '#fff8e1';
+coinCtx.fill();
+coinCtx.restore();
+fs.writeFileSync('./assets/coin.png', coinCanvas.toBuffer());
 
 console.log('Assets generated successfully!'); 

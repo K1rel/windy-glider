@@ -72,6 +72,10 @@ export default class GameScene extends Phaser.Scene {
         this.difficultyLevel = 1;
         this.gameState = 'playing';
         this.lastSpawnX = 0;
+        this.strengthActive = false;
+        this.coinActive = false;
+        this.boostActive = false;
+        this._boostFlashTimer = 0;
 
         /* — sky — */
         this.cameras.main.setBackgroundColor(0x87ceeb);
@@ -283,6 +287,15 @@ export default class GameScene extends Phaser.Scene {
             heart.setScale(0.7);
         }
 
+        // Add powerups with higher probability
+        if (Phaser.Math.Between(0, 4) === 0) { // ~1 in 5 chance
+            const powerupY = Phaser.Math.Between(80, this.ground.y - 40);
+            const type = Phaser.Math.RND.pick(['boost', 'strength', 'coin']);
+            const powerup = this.collectibles.create(spawnX + Phaser.Math.Between(120, 320), powerupY, type);
+            powerup.setScale(0.7);
+            powerup.setData('powerup', type);
+        }
+
         this.lastSpawnX = spawnX;
     }
 
@@ -347,6 +360,20 @@ export default class GameScene extends Phaser.Scene {
             /* Remove if off screen */
             if (bird.x < this.cameras.main.scrollX - 100) bird.destroy();
         });
+
+        // Star power boost: keep high speed and flash
+        if (this.boostActive) {
+            this.glider.body.velocity.x = 1600;
+            // Rainbow flash effect
+            this._boostFlashTimer += this.game.loop.delta;
+            if (this._boostFlashTimer > 60) {
+                this._boostFlashTimer = 0;
+                const colors = [0xff4444, 0xffe100, 0x44ff44, 0x44e1ff, 0x4444ff, 0xe144ff];
+                this.glider.setTint(Phaser.Utils.Array.GetRandom(colors));
+            }
+        } else {
+            this.glider.clearTint();
+        }
     }
 
     /* ───────────────── PHYSICS HELPERS */
@@ -407,12 +434,16 @@ export default class GameScene extends Phaser.Scene {
     handleGroundCollision () { this.gameOver(); }
 
     handleObstacleCollision (glider, pillar) {
+        if (this.strengthActive || this.boostActive) {
+            pillar.destroy();
+            if (this.boostActive) this.showPowerupText('STAR SMASH!', 0xffe100);
+            else this.showPowerupText('SMASH!', 0xff4444);
+            return;
+        }
         pillar.destroy();
         this.lives--;
         this.events.emit('updateLives', this.lives);
-
         if (this.lives <= 0) { this.gameOver(); return; }
-
         /* bounce back & invulnerability flicker */
         glider.body.velocity.x = Math.max(50, glider.body.velocity.x * 0.3);
         glider.body.velocity.y = -Math.abs(glider.body.velocity.y) * 0.7;
@@ -421,11 +452,37 @@ export default class GameScene extends Phaser.Scene {
         this.time.delayedCall(1000, () => glider.setAlpha(1));
     }
 
-    handleCollectibleCollision (_, star) {
-        if (!star.active) return;
-        this.score += star.getData('points');
+    handleCollectibleCollision (_, item) {
+        if (!item.active) return;
+        if (item.getData('powerup')) {
+            const type = item.getData('powerup');
+            if (type === 'boost') {
+                // Star power: invincible, fast, break everything for 7s
+                this.boostActive = true;
+                this._boostFlashTimer = 0;
+                this.showPowerupText('STAR POWER!');
+                this.glider.body.velocity.x = 1600;
+                this.time.delayedCall(7000, () => { this.boostActive = false; });
+            } else if (type === 'strength') {
+                // Break obstacles for 6 seconds
+                this.strengthActive = true;
+                this.showPowerupText('STRENGTH!');
+                this.time.delayedCall(6000, () => { this.strengthActive = false; });
+            } else if (type === 'coin') {
+                // Double star points for 8 seconds
+                this.coinActive = true;
+                this.showPowerupText('DOUBLE STARS!');
+                this.time.delayedCall(8000, () => { this.coinActive = false; });
+            }
+            item.destroy();
+            return;
+        }
+        // Normal collectible (star)
+        let points = item.getData('points') || 0;
+        if (this.coinActive) points *= 2;
+        this.score += points;
         this.events.emit('updateScore', this.score);
-        star.destroy();
+        item.destroy();
     }
 
     handleWindZoneCollision (_, zone) {
@@ -433,6 +490,11 @@ export default class GameScene extends Phaser.Scene {
     }
 
     handleSpikeyCollision (glider, spikey) {
+        if (this.boostActive) {
+            spikey.destroy();
+            this.showPowerupText('STAR SMASH!', 0xffe100);
+            return;
+        }
         spikey.destroy();
         this.lives--;
         this.events.emit('updateLives', this.lives);
@@ -446,6 +508,11 @@ export default class GameScene extends Phaser.Scene {
 
     handleLaserCollision (glider, laser) {
         if (!laser.getData('active')) return;
+        if (this.boostActive) {
+            laser.destroy();
+            this.showPowerupText('STAR SMASH!', 0xffe100);
+            return;
+        }
         this.lives--;
         this.events.emit('updateLives', this.lives);
         if (this.lives <= 0) { this.gameOver(); return; }
@@ -457,6 +524,11 @@ export default class GameScene extends Phaser.Scene {
     }
 
     handleBirdCollision (glider, bird) {
+        if (this.boostActive) {
+            bird.destroy();
+            this.showPowerupText('STAR SMASH!', 0xffe100);
+            return;
+        }
         bird.destroy();
         this.lives--;
         this.events.emit('updateLives', this.lives);
@@ -491,5 +563,24 @@ export default class GameScene extends Phaser.Scene {
     gameOver () {
         this.gameState = 'gameOver';
         this.events.emit('gameOver', this.score, this.distance);
+    }
+
+    showPowerupText(text, color = 0x4caf50) {
+        if (this.powerupText) this.powerupText.destroy();
+        this.powerupText = this.add.text(this.glider.x, this.glider.y - 60, text, {
+            font: 'bold 28px Arial',
+            fill: '#fff',
+            stroke: Phaser.Display.Color.IntegerToColor(color).rgba,
+            strokeThickness: 6,
+            align: 'center',
+            backgroundColor: 'rgba(0,0,0,0.3)'
+        }).setOrigin(0.5).setDepth(1000);
+        this.tweens.add({
+            targets: this.powerupText,
+            y: this.glider.y - 100,
+            alpha: 0,
+            duration: 900,
+            onComplete: () => this.powerupText && this.powerupText.destroy()
+        });
     }
 }
