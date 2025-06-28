@@ -7,6 +7,7 @@ const MIN_VERTICAL_GAP   = 160;   // smallest hole between two pillars
 const MIN_HORIZONTAL_GAP = 400;   // min. distance between pillar pairs
 
 const GRAVITY_PER_FRAME = 0.42   // ↑ increased for a harder, faster sink
+const TRAIL = 24;
 
 export default class GameScene extends Phaser.Scene {
     constructor () { super('GameScene'); }
@@ -150,6 +151,15 @@ export default class GameScene extends Phaser.Scene {
         cam.setFollowOffset(-cam.width / 4, 0);
         cam.roundPixels = true;
 
+        /* ───────── wind *visuals* (NO particle emitter) ───────── */
+        // we recycle simple images instead of relying on the removed createEmitter()
+        this.windGustPool = this.add.group({
+            defaultKey : 'wind',
+            maxSize    : 80,                 // plenty for overlapping gusts
+            classType  : Phaser.GameObjects.Image
+        });
+        this._gustTimer = 0;                 // throttles continuous streaks
+
         /* — wind swipe input — */
         this.windController = { strength: 0, direction: 0, isSwiping: false, startX: 0, startY: 0, startTime: 0 };
         this.input.on('pointerdown', this.startSwipe,  this);
@@ -189,6 +199,30 @@ export default class GameScene extends Phaser.Scene {
         });
     }
 
+    spawnGust (x, y, angleDeg, qty = 1, spread = 6) {
+        for (let i = 0; i < qty; i++) {
+            const gust = this.windGustPool.get(x + Phaser.Math.Between(-spread, spread),
+                y + Phaser.Math.Between(-spread, spread));
+            if (!gust) return; // pool exhausted
+            gust.setActive(true).setVisible(true)
+                .setAlpha(0.9)
+                .setScale(Phaser.Math.FloatBetween(0.4, 0.8))
+                .setRotation(Phaser.Math.DegToRad(angleDeg) + Phaser.Math.FloatBetween(-0.3, 0.3));
+
+            this.tweens.add({
+                targets: gust,
+                alpha   : 0,
+                scale   : 0.2,
+                duration: 450,
+                ease    : 'quad.out',
+                onComplete: () => {
+                    this.windGustPool.killAndHide(gust);
+                    gust.setScale(1);           // reset for next reuse
+                }
+            });
+        }
+    }
+
     /* ───────────────────────── GROUND */
     createGround () {
         const cam = this.cameras.main;
@@ -212,31 +246,45 @@ export default class GameScene extends Phaser.Scene {
         body.velocity.x = 100;   // forward motion
     }
 
-    /* ════════════════ WIND SWIPE HANDLERS ════════════════ */
+    /* ═════════ WIND SWIPE HANDLERS ═════════ */
     startSwipe (p) {
         if (this.gameState !== 'playing') return;
-        Object.assign(this.windController, {
-            isSwiping: true,
-            startX: p.x, startY: p.y,
-            startTime: this.time.now,
-            strength: 120,
-            direction: Math.atan2(this.glider.y - p.y, this.glider.x - p.x)
-        });
+        const cam = this.cameras.main;
+        this.windController = {
+            isSwiping : true,
+            startX    : p.worldX,
+            startY    : p.worldY,
+            camX0     : cam.scrollX,
+            camY0     : cam.scrollY,
+            startTime : this.time.now
+        };
+        // tiny puff while finger / mouse is down
+        this.spawnGust(this.glider.x, this.glider.y, 0, 4, 4);
     }
-    updateSwipe (p) {
+
+    updateSwipe (pointer) {
         if (!this.windController.isSwiping) return;
-        this.windController.direction = Math.atan2(this.glider.y - p.y, this.glider.x - p.x);
+        this.windController.direction = Math.atan2(this.glider.y - pointer.worldY,
+            this.glider.x - pointer.worldX);
     }
+
     endSwipe (p) {
-        if (!this.windController.isSwiping) return;
         const w = this.windController;
-        const dx = p.x - w.startX, dy = p.y - w.startY;
-        const dist = Math.hypot(dx, dy);
-        const speed = dist / (this.time.now - w.startTime);
+        if (!w.isSwiping) return;
+
+        const cam = this.cameras.main;
+        const dx = (p.worldX - w.startX) - (cam.scrollX - w.camX0);
+        const dy = (p.worldY - w.startY) - (cam.scrollY - w.camY0);
+        const dist   = Math.hypot(dx, dy);
+        const speed  = dist / (this.time.now - w.startTime);
+
         w.direction = Math.atan2(dy, dx);
         w.strength  = Math.min(450, speed * 10 + dist * 0.5);
-        this.events.emit('updateWind', w.strength / 450);
         w.isSwiping = false;
+
+        const ex = this.glider.x - Math.cos(w.direction) * TRAIL;
+        const ey = this.glider.y - Math.sin(w.direction) * TRAIL;
+        this.spawnGust(ex, ey, Phaser.Math.RadToDeg(w.direction), 20, 10);
     }
 
     /* ════════════════ LEVEL GENERATION ════════════════ */
@@ -472,6 +520,16 @@ export default class GameScene extends Phaser.Scene {
         // push glider in wind direction
         v.x += Math.cos(w.direction) * w.strength * accel;
         v.y += Math.sin(w.direction) * w.strength * accel;
+
+        if (w.strength > 10) {
+            this._gustTimer += dtMs;
+            if (this._gustTimer > 45) {          // 1 gust every ~3 frames
+                const ex = this.glider.x - Math.cos(w.direction) * TRAIL;
+                const ey = this.glider.y - Math.sin(w.direction) * TRAIL;
+                this.spawnGust(ex, ey, Phaser.Math.RadToDeg(w.direction));
+                this._gustTimer = 0;
+            }
+        }
 
         /* optional: slight torque so the nose turns into the gust */
         if (w.strength > 20) {
