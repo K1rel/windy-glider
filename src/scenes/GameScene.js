@@ -54,7 +54,7 @@ export default class GameScene extends Phaser.Scene {
                 const y = 25 + Math.sin(angle) * 22;
                 if (i === 0) g.moveTo(x, y);
                 else g.lineTo(x, y);
-                const innerAngle = Phaser.Math.DegToRad(i * 72 + 36 - 90);
+                const innerAngle = Phaser.Math.DegToRad(i * 70 + 36 - 90);
                 const ix = 25 + Math.cos(innerAngle) * 10;
                 const iy = 25 + Math.sin(innerAngle) * 10;
                 g.lineTo(ix, iy);
@@ -327,6 +327,43 @@ export default class GameScene extends Phaser.Scene {
             .setScale(0.5)
             .setData('points', 1);
 
+        /* up to 2 bonus/random stars, placed near the gap */
+        for (let i = 0; i < 2; i++) {
+            if (Phaser.Math.Between(0, 1)) {
+                // Place horizontally offset from the gap, vertically inside or just above/below the gap
+                const sx = spawnX + 80 + i * 60 + Phaser.Math.Between(-10, 10);
+                let sy;
+                if (Phaser.Math.Between(0, 1)) {
+                    // inside the gap
+                    sy = Phaser.Math.Between(centerY - gapSize/2 + 20, centerY + gapSize/2 - 20);
+                } else if (Phaser.Math.Between(0, 1)) {
+                    // just above the gap
+                    sy = centerY - gapSize/2 - Phaser.Math.Between(20, 40);
+                } else {
+                    // just below the gap
+                    sy = centerY + gapSize/2 + Phaser.Math.Between(20, 40);
+                }
+                // Clamp to playable area
+                sy = Phaser.Math.Clamp(sy, 50, groundTop - safeGap - 25);
+                // Pick star type
+                const bonusType = Phaser.Math.Between(0, 9);
+                let points, key;
+                if (bonusType === 0) { // 10% chance, red 50pt
+                    points = 50;
+                    key = 'star_red';
+                } else if (bonusType <= 2) { // 20% chance, green 10pt
+                    points = 10;
+                    key = 'star_green';
+                } else { // 70% chance, normal star
+                    points = 1;
+                    key = 'star';
+                }
+                this.collectibles.create(sx, sy, key)
+                    .setScale(0.5)
+                    .setData('points', points);
+            }
+        }
+
         /* wind zone (optional) */
         if (Phaser.Math.Between(0,1)) {
             const wzY = Phaser.Math.Between(50, groundTop - safeGap - 100);
@@ -335,72 +372,69 @@ export default class GameScene extends Phaser.Scene {
                 .setData('forceY', Phaser.Math.Between(0,1) ? -2 : 2);
         }
 
-        /* random star, avoiding pillars */
-        if (Phaser.Math.Between(0,1)) {
-            for (let tries = 0; tries < 5; tries++) {
-                const sx = spawnX + Phaser.Math.Between(0, 200);
-                const sy = Phaser.Math.Between(50, groundTop - safeGap - 25);
-                const overlaps = this.obstacles.getChildren().some(ob =>
-                    sx > ob.x - 30 && sx < ob.x + ob.displayWidth + 30 &&
-                    sy > ob.y      && sy < ob.y + ob.displayHeight);
-                if (!overlaps) {
-                    const bonusType = Phaser.Math.Between(0, 9);
-                    let points, key;
-                    if (bonusType === 0) { // 10% chance, red 50pt
-                        points = 50;
-                        key = 'star_red';
-                    } else if (bonusType <= 2) { // 20% chance, green 10pt
-                        points = 10;
-                        key = 'star_green';
-                    } else { // 70% chance, normal star
-                        points = 1;
-                        key = 'star';
-                    }
-                    this.collectibles.create(sx, sy, key)
-                        .setScale(0.5)
-                        .setData('points', points);
-                    break;
-                }
+        /* Add up to 2 spikey balls (spins, moves up/down) */
+        for (let i = 0; i < 2; i++) {
+            if (Phaser.Math.Between(0, 2) === 0) {
+                // Place spikey near the gap (centerY)
+                const spikeyY = Phaser.Math.Between(centerY - gapSize/2 + 30, centerY + gapSize/2 - 30);
+                const spikey = this.spikeys.create(spawnX + Phaser.Math.Between(100, 250), spikeyY, 'spikey');
+                spikey.setCircle(24).setBounce(1, 1).setCollideWorldBounds(false);
+                spikey.setData('spin', Phaser.Math.Between(-4, 4) || 2);
+                spikey.setData('vy', Phaser.Math.Between(-60, 60) || 40);
+            }
+        }
+        /* Add up to 2 lasers (horizontal, can move up/down, animates on/off) */
+        for (let i = 0; i < 2; i++) {
+            if (Phaser.Math.Between(0, 2) === 0) {
+                // Place laser near the gap (centerY)
+                const laserY = Phaser.Math.Between(centerY - gapSize/2 + 20, centerY + gapSize/2 - 20);
+                const laser = this.lasers.create(spawnX + Phaser.Math.Between(150, 300), laserY, 'laser');
+                laser.setImmovable(true);
+                laser.setData('timer', 0);
+                laser.setData('active', true);
+                laser.setAlpha(1);
+            }
+        }
+        /* Add up to 2 birds (flies left, can be at any height near gap) */
+        for (let i = 0; i < 2; i++) {
+            if (Phaser.Math.Between(0, 2) === 0) {
+                // Place bird near the gap (centerY)
+                const birdY = Phaser.Math.Between(centerY - gapSize/2 + 20, centerY + gapSize/2 - 20);
+                const bird = this.birds.create(spawnX + Phaser.Math.Between(200, 400), birdY, 'bird');
+                bird.setVelocityX(-Phaser.Math.Between(120, 200));
+                bird.setData('flap', 0);
             }
         }
 
-        /* Add spikey ball (spins, moves up/down) */
-        if (Phaser.Math.Between(0, 2) === 0) {
-            const spikeyY = Phaser.Math.Between(100, groundTop - 60);
-            const spikey = this.spikeys.create(spawnX + Phaser.Math.Between(100, 250), spikeyY, 'spikey');
-            spikey.setCircle(24).setBounce(1, 1).setCollideWorldBounds(false);
-            spikey.setData('spin', Phaser.Math.Between(-4, 4) || 2);
-            spikey.setData('vy', Phaser.Math.Between(-60, 60) || 40);
-        }
-        /* Add laser (horizontal, can move up/down, animates on/off) */
-        if (Phaser.Math.Between(0, 2) === 0) {
-            const laserY = Phaser.Math.Between(120, groundTop - 40);
-            const laser = this.lasers.create(spawnX + Phaser.Math.Between(150, 300), laserY, 'laser');
-            laser.setImmovable(true);
-            laser.setData('timer', 0);
-            laser.setData('active', true);
-            laser.setAlpha(1);
-        }
-        /* Add bird (flies left, can be at any height) */
-        if (Phaser.Math.Between(0, 2) === 0) {
-            const birdY = Phaser.Math.Between(80, groundTop - 40);
-            const bird = this.birds.create(spawnX + Phaser.Math.Between(200, 400), birdY, 'bird');
-            bird.setVelocityX(-Phaser.Math.Between(120, 200));
-            bird.setData('flap', 0);
-        }
-
-        /* Add heart (extra life) with low probability */
-        if (Phaser.Math.Between(0, 14) === 0) { // ~1 in 15 chance
-            const heartY = Phaser.Math.Between(80, this.ground.y - 40);
-            const heart = this.hearts.create(spawnX + Phaser.Math.Between(100, 300), heartY, 'heart');
+        /* Add heart (extra life) with higher probability and better placement */
+        if (Phaser.Math.Between(0, 7) === 0) { // ~1 in 8 chance
+            // Place heart inside or just above/below the gap
+            let heartY;
+            if (Phaser.Math.Between(0, 1)) {
+                heartY = Phaser.Math.Between(centerY - gapSize/2 + 20, centerY + gapSize/2 - 20);
+            } else if (Phaser.Math.Between(0, 1)) {
+                heartY = centerY - gapSize/2 - Phaser.Math.Between(20, 40);
+            } else {
+                heartY = centerY + gapSize/2 + Phaser.Math.Between(20, 40);
+            }
+            heartY = Phaser.Math.Clamp(heartY, 80, this.ground.y - 40);
+            const heart = this.hearts.create(spawnX + Phaser.Math.Between(120, 320), heartY, 'heart');
             heart.setScale(0.7);
         }
 
-        // Add powerups with higher probability
-        if (Phaser.Math.Between(0, 4) === 0) { // ~1 in 5 chance
-            const powerupY = Phaser.Math.Between(80, this.ground.y - 40);
+        // Add powerups with higher probability and better placement
+        if (Phaser.Math.Between(0, 2) === 0) { // ~1 in 3 chance
+            let powerupY;
+            if (Phaser.Math.Between(0, 1)) {
+                powerupY = Phaser.Math.Between(centerY - gapSize/2 + 20, centerY + gapSize/2 - 20);
+            } else if (Phaser.Math.Between(0, 1)) {
+                powerupY = centerY - gapSize/2 - Phaser.Math.Between(20, 40);
+            } else {
+                powerupY = centerY + gapSize/2 + Phaser.Math.Between(20, 40);
+            }
+            powerupY = Phaser.Math.Clamp(powerupY, 80, this.ground.y - 40);
             const type = Phaser.Math.RND.pick(['boost', 'strength', 'coin']);
-            const powerup = this.collectibles.create(spawnX + Phaser.Math.Between(120, 320), powerupY, type);
+            const powerup = this.collectibles.create(spawnX + Phaser.Math.Between(140, 340), powerupY, type);
             powerup.setScale(0.7);
             powerup.setData('powerup', type);
         }
