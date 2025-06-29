@@ -112,7 +112,7 @@ export default class UIScene extends Phaser.Scene {
         this.gameScene.events.on('updateDistance', this.updateDistance, this);
         this.gameScene.events.on('updateLives', this.updateLives, this);
         this.gameScene.events.on('updateWind', this.updateWind, this);
-        this.gameScene.events.on('gameOver', this.showGameOver, this);
+        this.gameScene.events.on('gameOver', this.handleGameOver, this);
     }
 
     updateScore(score) {
@@ -138,9 +138,10 @@ export default class UIScene extends Phaser.Scene {
         );
     }
 
-    showGameOver(score, distance) {
-        this.finalScoreText.setText(`Final Score: ${score}`);
-        this.finalDistanceText.setText(`Distance Traveled: ${Math.floor(distance)}m`);
-        this.gameOverScreen.setVisible(true);
+    handleGameOver(score, distance) {
+        // Show leaderboard as overlay and pause game, do not stop GameScene
+        this.scene.launch('LeaderboardScene', { score, distance });
+        this.scene.bringToTop('LeaderboardScene');
+        this.scene.pause('GameScene');
     }
 } 

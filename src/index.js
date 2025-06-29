@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import BootScene from './scenes/BootScene';
 import GameScene from './scenes/GameScene';
 import UIScene from './scenes/UIScene';
+import LeaderboardScene from './scenes/LeaderboardScene';
 
 const config = {
     type: Phaser.AUTO,
@@ -15,10 +16,13 @@ const config = {
             debug: false
         }
     },
-    scene: [BootScene, GameScene, UIScene],
+    scene: [BootScene, GameScene, UIScene, LeaderboardScene],
     scale: {
         mode: Phaser.Scale.RESIZE,
         autoCenter: Phaser.Scale.CENTER_BOTH
+    },
+    dom: {
+        createContainer: true
     }
 };
 
