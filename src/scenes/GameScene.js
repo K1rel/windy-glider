@@ -10,7 +10,10 @@ const GRAVITY_PER_FRAME = 0.42   // ↑ increased for a harder, faster sink
 const TRAIL = 24;
 
 export default class GameScene extends Phaser.Scene {
-    constructor () { super('GameScene'); }
+    constructor () {
+        super('GameScene');
+        this._damageBlinking = false;
+    }
 
     /* ═════════════════════════ PRELOAD ═════════════════════════ */
     preload () {
@@ -197,6 +200,22 @@ export default class GameScene extends Phaser.Scene {
             duration: 1200,
             onComplete: () => this.instructionText.destroy()
         });
+    }
+
+    startDamageBlink () {
+        if (this._damageBlinking) {
+            return;
+        }
+        this._damageBlinking = true;
+        const flashes = 6;
+        const dur = 90;
+        for (let i = 0; i < flashes; i++) {
+            this.time.delayedCall(i * dur * 2, () => this.glider.setTint(0xff0000))
+            this.time.delayedCall(i * dur * 2 + dur, () => this.glider.clearTint())
+        }
+        this.time.delayedCall(flashes * dur * 2, () => {
+            this._damageBlinking = false;
+        })
     }
 
     spawnGust (x, y, angleDeg, qty = 1, spread = 6) {
@@ -461,7 +480,7 @@ export default class GameScene extends Phaser.Scene {
                 const colors = [0xff4444, 0xffe100, 0x44ff44, 0x44e1ff, 0x4444ff, 0xe144ff];
                 this.glider.setTint(Phaser.Utils.Array.GetRandom(colors));
             }
-        } else {
+        } else if(!this._damageBlinking) {
             this.glider.clearTint();
         }
 
@@ -564,8 +583,10 @@ export default class GameScene extends Phaser.Scene {
         glider.body.velocity.x = Math.max(50, glider.body.velocity.x * 0.3);
         glider.body.velocity.y = -Math.abs(glider.body.velocity.y) * 0.7;
         glider.x -= 15;
-        glider.setAlpha(0.5);
-        this.time.delayedCall(1000, () => glider.setAlpha(1));
+
+        // glider.setAlpha(0.5);
+        // this.time.delayedCall(1000, () => glider.setAlpha(1));
+        this.startDamageBlink();
     }
 
     handleCollectibleCollision (_, item) {
@@ -618,8 +639,9 @@ export default class GameScene extends Phaser.Scene {
         glider.body.velocity.x = Math.max(50, glider.body.velocity.x * 0.3);
         glider.body.velocity.y = -Math.abs(glider.body.velocity.y) * 0.7;
         glider.x -= 15;
-        glider.setAlpha(0.5);
-        this.time.delayedCall(1000, () => glider.setAlpha(1));
+        // glider.setAlpha(0.5);
+        // this.time.delayedCall(1000, () => glider.setAlpha(1));
+        this.startDamageBlink();
     }
 
     handleLaserCollision (glider, laser) {
@@ -635,8 +657,9 @@ export default class GameScene extends Phaser.Scene {
         glider.body.velocity.x = Math.max(50, glider.body.velocity.x * 0.3);
         glider.body.velocity.y = -Math.abs(glider.body.velocity.y) * 0.7;
         glider.x -= 15;
-        glider.setAlpha(0.5);
-        this.time.delayedCall(1000, () => glider.setAlpha(1));
+        // glider.setAlpha(0.5);
+        // this.time.delayedCall(1000, () => glider.setAlpha(1));
+        this.startDamageBlink();
     }
 
     handleBirdCollision (glider, bird) {
@@ -652,8 +675,9 @@ export default class GameScene extends Phaser.Scene {
         glider.body.velocity.x = Math.max(50, glider.body.velocity.x * 0.3);
         glider.body.velocity.y = -Math.abs(glider.body.velocity.y) * 0.7;
         glider.x -= 15;
-        glider.setAlpha(0.5);
-        this.time.delayedCall(1000, () => glider.setAlpha(1));
+        // glider.setAlpha(0.5);
+        // this.time.delayedCall(1000, () => glider.setAlpha(1));
+        this.startDamageBlink();
     }
 
     handleHeartCollision (glider, heart) {
