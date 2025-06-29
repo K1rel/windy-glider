@@ -1,13 +1,10 @@
 import Phaser from 'phaser';
+import { MIN_VERTICAL_GAP, MIN_HORIZONTAL_GAP, GRAVITY_PER_FRAME, TRAIL } from '../utils/constants';
+import Glider from '../objects/Glider';
 
 /* ──────────────────────────
    TUNABLE LAYOUT CONSTANTS
    ────────────────────────── */
-const MIN_VERTICAL_GAP   = 160;   // smallest hole between two pillars
-const MIN_HORIZONTAL_GAP = 400;   // min. distance between pillar pairs
-
-const GRAVITY_PER_FRAME = 0.42   // ↑ increased for a harder, faster sink
-const TRAIL = 24;
 
 export default class GameScene extends Phaser.Scene {
     constructor () {
@@ -200,6 +197,12 @@ export default class GameScene extends Phaser.Scene {
             duration: 1200,
             onComplete: () => this.instructionText.destroy()
         });
+
+        // Remove old damage overlay if it exists (for replay)
+        if (this.damageOverlay) {
+            this.damageOverlay.destroy();
+            this.damageOverlay = null;
+        }
     }
 
     startDamageBlink () {
@@ -207,15 +210,16 @@ export default class GameScene extends Phaser.Scene {
             return;
         }
         this._damageBlinking = true;
+        // Only glider tint blink, no overlay
         const flashes = 6;
         const dur = 90;
         for (let i = 0; i < flashes; i++) {
-            this.time.delayedCall(i * dur * 2, () => this.glider.setTint(0xff0000))
-            this.time.delayedCall(i * dur * 2 + dur, () => this.glider.clearTint())
+            this.time.delayedCall(i * dur * 2, () => this.glider.sprite.setTint(0xff0000))
+            this.time.delayedCall(i * dur * 2 + dur, () => this.glider.sprite.clearTint())
         }
         this.time.delayedCall(flashes * dur * 2, () => {
             this._damageBlinking = false;
-        })
+        });
     }
 
     spawnGust (x, y, angleDeg, qty = 1, spread = 6) {
@@ -255,14 +259,8 @@ export default class GameScene extends Phaser.Scene {
     /* ───────────────────────── GLIDER */
     createGlider () {
         const cam = this.cameras.main;
-        this.glider = this.physics.add.sprite(200, cam.height / 2, 'glider');
-        this.glider.setDisplaySize(96, 48).setOrigin(0.5);
-        const body = this.glider.body;
-        body.setBounce(0.1)
-            .setDrag(0.985)
-            .setMaxVelocity(400, 300)
-            .setAngularDrag(0.8);
-        body.velocity.x = 100;   // forward motion
+        this.glider = new Glider(this, 200, cam.height / 2);
+        this._damageBlinking = false; // Reset damage blink state
     }
 
     /* ═════════ WIND SWIPE HANDLERS ═════════ */
@@ -278,13 +276,13 @@ export default class GameScene extends Phaser.Scene {
             startTime : this.time.now
         };
         // tiny puff while finger / mouse is down
-        this.spawnGust(this.glider.x, this.glider.y, 0, 4, 4);
+        this.spawnGust(this.glider.sprite.x, this.glider.sprite.y, 0, 4, 4);
     }
 
     updateSwipe (pointer) {
         if (!this.windController.isSwiping) return;
-        this.windController.direction = Math.atan2(this.glider.y - pointer.worldY,
-            this.glider.x - pointer.worldX);
+        this.windController.direction = Math.atan2(this.glider.sprite.y - pointer.worldY,
+            this.glider.sprite.x - pointer.worldX);
     }
 
     endSwipe (p) {
@@ -301,8 +299,8 @@ export default class GameScene extends Phaser.Scene {
         w.strength  = Math.min(450, speed * 10 + dist * 0.5);
         w.isSwiping = false;
 
-        const ex = this.glider.x - Math.cos(w.direction) * TRAIL;
-        const ey = this.glider.y - Math.sin(w.direction) * TRAIL;
+        const ex = this.glider.sprite.x - Math.cos(w.direction) * TRAIL;
+        const ey = this.glider.sprite.y - Math.sin(w.direction) * TRAIL;
         this.spawnGust(ex, ey, Phaser.Math.RadToDeg(w.direction), 20, 10);
     }
 
@@ -423,7 +421,7 @@ export default class GameScene extends Phaser.Scene {
         }
 
         // Add powerups with higher probability and better placement
-        if (Phaser.Math.Between(0, 2) === 0) { // ~1 in 3 chance
+        if (Phaser.Math.Between(0, 1) === 0) { // ~1 in 2 chance (was 1 in 3)
             let powerupY;
             if (Phaser.Math.Between(0, 1)) {
                 powerupY = Phaser.Math.Between(centerY - gapSize/2 + 20, centerY + gapSize/2 - 20);
@@ -452,7 +450,7 @@ export default class GameScene extends Phaser.Scene {
         this.ground.tilePositionX = cam.scrollX;
 
         /* distance HUD */
-        this.distance = this.glider.x * 0.05;
+        this.distance = this.glider.sprite.x * 0.05;
         this.events.emit('updateDistance', this.distance);
 
         /* physics */
@@ -464,14 +462,14 @@ export default class GameScene extends Phaser.Scene {
         this.physics.overlap(this.glider, this.windZones, this.handleWindZoneCollision, null, this);
 
         /* spawn ahead */
-        if (this.glider.x > this.lastSpawnX - MIN_HORIZONTAL_GAP)
+        if (this.glider.sprite.x > this.lastSpawnX - MIN_HORIZONTAL_GAP)
             this.generateLevel();
 
         /* cleanup off-screen items */
         this.cleanupObjects();
 
         /* grass collision */
-        if (this.glider.y + this.glider.displayHeight / 2 >= this.ground.y)
+        if (this.glider.sprite.y + this.glider.sprite.displayHeight / 2 >= this.ground.y)
             this.gameOver();
 
         /* Spikey balls: spin and bounce up/down */
@@ -506,16 +504,16 @@ export default class GameScene extends Phaser.Scene {
 
         // Star power boost: keep high speed and flash
         if (this.boostActive) {
-            this.glider.body.velocity.x = 1600;
+            this.glider.sprite.body.velocity.x = 1600;
             // Rainbow flash effect
             this._boostFlashTimer += this.game.loop.delta;
             if (this._boostFlashTimer > 60) {
                 this._boostFlashTimer = 0;
                 const colors = [0xff4444, 0xffe100, 0x44ff44, 0x44e1ff, 0x4444ff, 0xe144ff];
-                this.glider.setTint(Phaser.Utils.Array.GetRandom(colors));
+                this.glider.sprite.setTint(Phaser.Utils.Array.GetRandom(colors));
             }
         } else if(!this._damageBlinking) {
-            this.glider.clearTint();
+            this.glider.sprite.clearTint();
         }
 
         // Parallax cloud movement
@@ -537,7 +535,7 @@ export default class GameScene extends Phaser.Scene {
 
     /* ───────────────── PHYSICS HELPERS */
     updateGliderPhysics () {
-        const body = this.glider.body
+        const body = this.glider.sprite.body
         const v    = body.velocity
 
         /* 1. Never let airflow stall completely */
@@ -559,12 +557,12 @@ export default class GameScene extends Phaser.Scene {
 
         /* 5. Tilt sprite toward real flight path (purely visual) */
         const target = Phaser.Math.RadToDeg(Math.atan2(v.y, v.x))
-        this.glider.angle = Phaser.Math.Linear(this.glider.angle, target, 0.08)
+        this.glider.sprite.angle = Phaser.Math.Linear(this.glider.sprite.angle, target, 0.08)
     }
 
     applyWindForces (dtMs) {
         const w  = this.windController;
-        const v  = this.glider.body.velocity;
+        const v  = this.glider.sprite.body.velocity;
 
         // convert milliseconds to "60 fps–frames"
         const dt = dtMs / 16.67;                 // 1 ≈ one frame at 60 FPS
@@ -577,8 +575,8 @@ export default class GameScene extends Phaser.Scene {
         if (w.strength > 10) {
             this._gustTimer += dtMs;
             if (this._gustTimer > 45) {          // 1 gust every ~3 frames
-                const ex = this.glider.x - Math.cos(w.direction) * TRAIL;
-                const ey = this.glider.y - Math.sin(w.direction) * TRAIL;
+                const ex = this.glider.sprite.x - Math.cos(w.direction) * TRAIL;
+                const ey = this.glider.sprite.y - Math.sin(w.direction) * TRAIL;
                 this.spawnGust(ex, ey, Phaser.Math.RadToDeg(w.direction));
                 this._gustTimer = 0;
             }
@@ -587,10 +585,10 @@ export default class GameScene extends Phaser.Scene {
         /* optional: slight torque so the nose turns into the gust */
         if (w.strength > 20) {
             const a = Phaser.Math.Angle.ShortestBetween(
-                this.glider.angle,
+                this.glider.sprite.angle,
                 Phaser.Math.RadToDeg(w.direction)
             );
-            this.glider.body.angularVelocity += (a / 180) * (w.strength / 250);
+            this.glider.sprite.body.angularVelocity += (a / 180) * (w.strength / 250);
         }
 
         // exponential decay of the gust
@@ -632,7 +630,7 @@ export default class GameScene extends Phaser.Scene {
                 this.boostActive = true;
                 this._boostFlashTimer = 0;
                 this.showPowerupText('STAR POWER!');
-                this.glider.body.velocity.x = 1600;
+                this.glider.sprite.body.velocity.x = 1600;
                 this.time.delayedCall(7000, () => { this.boostActive = false; });
             } else if (type === 'strength') {
                 // Break obstacles for 6 seconds
@@ -657,32 +655,29 @@ export default class GameScene extends Phaser.Scene {
     }
 
     handleWindZoneCollision (_, zone) {
-        this.glider.body.velocity.y += zone.getData('forceY') * 0.1;
+        this.glider.sprite.body.velocity.y += zone.getData('forceY') * 0.1;
     }
 
     handleSpikeyCollision (glider, spikey) {
-        if (this.boostActive) {
+        if (this.strengthActive || this.boostActive) {
             spikey.destroy();
-            this.showPowerupText('STAR SMASH!', 0xffe100);
+            this.showPowerupText(this.boostActive ? 'STAR SMASH!' : 'SMASH!', this.boostActive ? 0xffe100 : 0xff4444);
             return;
         }
         spikey.destroy();
         this.lives--;
         this.events.emit('updateLives', this.lives);
         if (this.lives <= 0) { this.gameOver(); return; }
-        glider.body.velocity.x = Math.max(50, glider.body.velocity.x * 0.3);
         glider.body.velocity.y = -Math.abs(glider.body.velocity.y) * 0.7;
         glider.x -= 15;
-        // glider.setAlpha(0.5);
-        // this.time.delayedCall(1000, () => glider.setAlpha(1));
         this.startDamageBlink();
     }
 
     handleLaserCollision (glider, laser) {
         if (!laser.getData('active')) return;
-        if (this.boostActive) {
+        if (this.strengthActive || this.boostActive) {
             laser.destroy();
-            this.showPowerupText('STAR SMASH!', 0xffe100);
+            this.showPowerupText(this.boostActive ? 'STAR SMASH!' : 'SMASH!', this.boostActive ? 0xffe100 : 0xff4444);
             return;
         }
         this.lives--;
@@ -691,15 +686,13 @@ export default class GameScene extends Phaser.Scene {
         glider.body.velocity.x = Math.max(50, glider.body.velocity.x * 0.3);
         glider.body.velocity.y = -Math.abs(glider.body.velocity.y) * 0.7;
         glider.x -= 15;
-        // glider.setAlpha(0.5);
-        // this.time.delayedCall(1000, () => glider.setAlpha(1));
         this.startDamageBlink();
     }
 
     handleBirdCollision (glider, bird) {
-        if (this.boostActive) {
+        if (this.strengthActive || this.boostActive) {
             bird.destroy();
-            this.showPowerupText('STAR SMASH!', 0xffe100);
+            this.showPowerupText(this.boostActive ? 'STAR SMASH!' : 'SMASH!', this.boostActive ? 0xffe100 : 0xff4444);
             return;
         }
         bird.destroy();
@@ -709,8 +702,6 @@ export default class GameScene extends Phaser.Scene {
         glider.body.velocity.x = Math.max(50, glider.body.velocity.x * 0.3);
         glider.body.velocity.y = -Math.abs(glider.body.velocity.y) * 0.7;
         glider.x -= 15;
-        // glider.setAlpha(0.5);
-        // this.time.delayedCall(1000, () => glider.setAlpha(1));
         this.startDamageBlink();
     }
 
@@ -741,7 +732,7 @@ export default class GameScene extends Phaser.Scene {
 
     showPowerupText(text, color = 0x4caf50) {
         if (this.powerupText) this.powerupText.destroy();
-        this.powerupText = this.add.text(this.glider.x, this.glider.y - 60, text, {
+        this.powerupText = this.add.text(this.glider.sprite.x, this.glider.sprite.y - 60, text, {
             font: 'bold 28px Arial',
             fill: '#fff',
             stroke: Phaser.Display.Color.IntegerToColor(color).rgba,
@@ -751,7 +742,7 @@ export default class GameScene extends Phaser.Scene {
         }).setOrigin(0.5).setDepth(1000);
         this.tweens.add({
             targets: this.powerupText,
-            y: this.glider.y - 100,
+            y: this.glider.sprite.y - 100,
             alpha: 0,
             duration: 900,
             onComplete: () => this.powerupText && this.powerupText.destroy()

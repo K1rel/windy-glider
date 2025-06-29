@@ -1,16 +1,5 @@
 import Phaser from 'phaser';
-
-const LEADERBOARD_KEY = 'windyglider_leaderboard';
-const MAX_ENTRIES = 10;
-
-function getLeaderboard() {
-    const data = localStorage.getItem(LEADERBOARD_KEY);
-    return data ? JSON.parse(data) : [];
-}
-
-function saveLeaderboard(entries) {
-    localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(entries));
-}
+import { getLeaderboard, saveLeaderboard, MAX_ENTRIES } from '../utils/leaderboard';
 
 export default class LeaderboardScene extends Phaser.Scene {
     constructor() {

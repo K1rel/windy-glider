@@ -28,18 +28,6 @@ export default class UIScene extends Phaser.Scene {
             strokeThickness: 4
         });
 
-        // Create wind meter
-        this.windMeter = this.add.graphics();
-        this.windMeter.fillStyle(0x000000, 0.3);
-        this.windMeter.fillRect(
-            this.cameras.main.width / 2 - 100,
-            this.cameras.main.height - 50,
-            200,
-            20
-        );
-
-        this.windFill = this.add.graphics();
-
         // Create game over screen
         this.gameOverScreen = this.add.container(0, 0);
         this.gameOverScreen.setVisible(false);
@@ -111,7 +99,6 @@ export default class UIScene extends Phaser.Scene {
         this.gameScene.events.on('updateScore', this.updateScore, this);
         this.gameScene.events.on('updateDistance', this.updateDistance, this);
         this.gameScene.events.on('updateLives', this.updateLives, this);
-        this.gameScene.events.on('updateWind', this.updateWind, this);
         this.gameScene.events.on('gameOver', this.handleGameOver, this);
     }
 
@@ -125,17 +112,6 @@ export default class UIScene extends Phaser.Scene {
 
     updateLives(lives) {
         this.livesText.setText(`Lives: ${lives}`);
-    }
-
-    updateWind(strength) {
-        this.windFill.clear();
-        this.windFill.fillStyle(0x4CAF50, 1);
-        this.windFill.fillRect(
-            this.cameras.main.width / 2 - 100,
-            this.cameras.main.height - 50,
-            200 * strength,
-            20
-        );
     }
 
     handleGameOver(score, distance) {
