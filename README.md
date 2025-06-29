@@ -66,3 +66,6 @@
 - **Phaser 3 Examples**: https://phaser.io/examples
 
 ---
+
+211185 Кирил Герасимовски
+211168 Владислав Ангеловски
