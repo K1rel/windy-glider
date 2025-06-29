@@ -1,49 +1,70 @@
 # Windy Glider
 
-A fun and challenging game where you control wind gusts to guide a paper glider through obstacles and collect stars.
+## Образложение
 
-## How to Play
+Оваа игра е изработена како веб-игра со користење на **Phaser 3** – современ HTML5 game engine кој овозможува лесно креирање на 2D игри за веб-прелистувачи. Главната идеја е играчот индиректно да го контролира хартиениот авион преку создавање на налети на ветер, со што се добива уникатна и интересна механика на играње.
 
-1. Open `index.html` in a modern web browser
-2. Click on the screen to create wind gusts
-3. Guide the glider through obstacles and collect stars
-4. Try to achieve the highest score and travel the longest distance!
+### Главни компоненти и функционалности
 
-## Game Controls
+- **Механика на ветер:**  
+  Играчот не го контролира директно авионот, туку со drag/swipe на глувче или touchpad создава „налет на ветер“ кој го турка авионот во одредена насока. Ова се реализира преку применување на сила врз физичкото тело на авионот во насока и јачина зависна од движењето на глувчето.
 
-- Click above the glider to create upward wind gusts
-- Click below the glider to create downward wind gusts
-- The wind meter shows your current wind power
-- Collect stars to increase your score
-- Avoid obstacles to maintain your lives
+- **Генерирање на ниво:**  
+  Препреките (столбови, шила, ласери, птици) и колекциите (ѕвезди, срца, бонуси) се генерираат процедурно, секогаш околу отворот низ кој треба да помине авионот. Ова овозможува секое ново играње да биде различно и предизвикувачко.
 
-## Features
+- **Физика и судири:**  
+  Играта користи вграден physics engine на Phaser за реалистично движење на авионот, судири со препреки, и интеракција со бонуси. Авионот има гравитација, отпор на воздух, и може да добие дополнителна брзина или сила преку бонуси.
 
-- Smooth wind physics
-- Particle effects for wind gusts
-- Score tracking
-- Distance tracking
-- Lives system
-- Beautiful UI with wind meter
-- Game over screen with restart option
+- **Бонуси и power-ups:**  
+  Во играта се појавуваат различни бонуси (ѕвезди, срца за живот, power-ups за сила или star mode) кои му помагаат на играчот да преживее подолго или да освои повеќе поени.
 
-## Development
+- **UI и Leaderboard:**  
+  Постојат посебни сцени за HUD (приказ на поени, животи, растојание) и за табела со најдобри резултати (leaderboard). Leaderboard-от се чува во локалната меморија на прелистувачот (localStorage) и овозможува внесување на име по завршување на играта.
 
-The game is built using:
-- Phaser 3.70.0
-- HTML5
-- CSS3
-- JavaScript
+- **Модуларна структура:**  
+  Кодот е организиран во посебни фајлови и директориуми:  
+  - `scenes/` – сите сцени (GameScene, UIScene, LeaderboardScene, BootScene)  
+  - `objects/` – класи за сите објекти во играта (авион, препреки, бонуси, итн.)  
+  - `utils/` – utility функции и константи (генератор на ниво, leaderboard, constants)
 
-No build process is required - simply open the `index.html` file in a web browser to play!
+### Како се стартува играта во browser?
 
-## Assets
+1. **Инсталација на зависности:**  
+   Во root директориумот на проектот, отвори терминал и напиши:
+   ```
+   npm install
+   ```
 
-The game requires the following assets in the `assets` directory:
-- `glider.png` - The paper glider sprite
-- `obstacle.png` - Obstacle sprites
-- `star.png` - Collectible star sprites
-- `wind.png` - Wind particle sprite
-- `background.png` - Game background
+2. **Стартување на девелоперски сервер:**  
+   За да ја стартуваш играта во browser, користи:
+   ```
+   npm start
+   ```
+   или (во зависност од конфигурацијата):
+   ```
+   npx webpack serve
+   ```
 
-You can create these assets using any image editing software or download free game assets from websites like OpenGameArt.org. 
+3. **Отворање во прелистувач:**  
+   По стартувањето, отвори го следниот линк во твојот прелистувач:  
+   ```
+   http://localhost:8080
+   ```
+   (или портата што ќе ја прикаже терминалот)
+
+4. **Играње:**  
+   - Со drag/swipe на глувчето или touchpad создаваш ветер и го насочуваш авионот.
+   - Избегнувај препреки, собирај ѕвезди и бонуси, и обиди се да стигнеш што подалеку!
+   - По завршување, внеси име и види се на табелата со најдобри резултати.
+
+### Користени технологии и референци
+
+- **Phaser 3**: https://phaser.io/
+- **JavaScript (ES6 modules)**
+- **HTML5 Canvas**
+- **MDN Web Docs**: https://developer.mozilla.org/
+- **Phaser 3 Examples**: https://phaser.io/examples
+
+---
+
+Доколку ти треба уште подетално објаснување за некој дел од кодот или архитектурата, слободно прашај! 
